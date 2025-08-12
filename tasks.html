@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mis Tareas</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="top-row">
+      <h1>Gestor de Tareas</h1>
+      <button id="logoutBtn" class="logout-btn">Cerrar sesión</button>
+    </div>
+
+    <!-- Gestión de sedes -->
+    <h2>Gestionar Sedes</h2>
+    <form id="sedeForm">
+      <input id="sedeInput" type="text" placeholder="Nueva sede (ej. Sede Norte)" required />
+      <button type="submit">Añadir Sede</button>
+    </form>
+
+    <div class="sede-list" id="sedeList"></div>
+
+    <!-- Añadir tarea -->
+    <h2>Añadir Tarea</h2>
+    <form id="taskForm">
+      <select id="sedeSelect" required>
+        <option value="">-- Selecciona una sede --</option>
+      </select>
+      <textarea id="taskInput" placeholder="Descripción de la tarea" required></textarea>
+      <button type="submit">Añadir Tarea</button>
+    </form>
+
+    <!-- Lista agrupada por sede y estado -->
+    <h2>Lista de Tareas</h2>
+    <div id="taskList"></div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  
+  <script src="firebase-config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
