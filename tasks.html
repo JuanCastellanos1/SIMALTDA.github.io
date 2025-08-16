@@ -3,44 +3,153 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mis Tareas</title>
+  <title>SIMA - Gestión de Tareas</title>
   <link rel="stylesheet" href="style.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
   <div class="container">
+    <div class="header-brand">
+      <div class="logo">
+        <i class="fas fa-tools"></i>
+        <span>SIMA</span>
+      </div>
+      <div class="brand-subtitle">Servicios Integrales de Mantenimiento</div>
+    </div>
+
     <div class="top-row">
-      <h1>Gestor de Tareas</h1>
-      <button id="logoutBtn" class="logout-btn">Cerrar sesión</button>
+      <h1><i class="fas fa-tasks"></i> Gestión de Tareas de Mantenimiento</h1>
+      <div class="header-actions">
+        <button id="toggleCompletedBtn" class="btn btn-success">
+          <i class="fas fa-check-circle"></i>
+          Ver Completadas
+        </button>
+        <button id="reportBtn" class="btn btn-report">
+          <i class="fas fa-file-pdf"></i>
+          Generar Reporte
+        </button>
+        <button id="logoutBtn" class="logout-btn">
+          <i class="fas fa-sign-out-alt"></i>
+          Cerrar Sesión
+        </button>
+      </div>
     </div>
 
     <!-- Gestión de sedes -->
-    <h2>Gestionar Sedes</h2>
-    <form id="sedeForm">
-      <input id="sedeInput" type="text" placeholder="Nueva sede (ej. Sede Norte)" required />
-      <button type="submit">Añadir Sede</button>
-    </form>
-
-    <div class="sede-list" id="sedeList"></div>
+    <div class="section-card">
+      <h2><i class="fas fa-map-marker-alt"></i> Gestionar Sedes</h2>
+      <form id="sedeForm">
+        <div class="input-group">
+          <i class="fas fa-building"></i>
+          <input id="sedeInput" type="text" placeholder="Nueva sede (ej. Sede Norte, Planta Industrial)" required />
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-plus"></i>
+          Añadir Sede
+        </button>
+      </form>
+      <div class="sede-list" id="sedeList"></div>
+    </div>
 
     <!-- Añadir tarea -->
-    <h2>Añadir Tarea</h2>
-    <form id="taskForm">
-      <select id="sedeSelect" required>
-        <option value="">-- Selecciona una sede --</option>
-      </select>
-      <textarea id="taskInput" placeholder="Descripción de la tarea" required></textarea>
-      <button type="submit">Añadir Tarea</button>
-    </form>
+    <div class="section-card">
+      <h2><i class="fas fa-plus-circle"></i> Añadir Tarea de Mantenimiento</h2>
+      <form id="taskForm">
+        <div class="input-group">
+          <i class="fas fa-map-marker-alt"></i>
+          <select id="sedeSelect" required>
+            <option value="">-- Selecciona una sede --</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <i class="fas fa-clipboard-list"></i>
+          <textarea id="taskInput" placeholder="Descripción detallada de la tarea de mantenimiento" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-plus-circle"></i>
+          Añadir Tarea
+        </button>
+      </form>
+    </div>
 
     <!-- Lista agrupada por sede y estado -->
-    <h2>Lista de Tareas</h2>
-    <div id="taskList"></div>
+    <div class="section-card">
+      <h2><i class="fas fa-list-ul"></i> Tareas por Sede</h2>
+      <div id="taskList"></div>
+    </div>
+  </div>
+
+  <!-- Modal para completar tarea -->
+  <div id="completeModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fas fa-check-circle"></i> Completar Tarea</h3>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p><strong>Tarea:</strong> <span id="modalTaskDesc"></span></p>
+        <form id="completeForm">
+          <div class="input-group">
+            <i class="fas fa-tools"></i>
+            <textarea id="materialsInput" placeholder="Materiales utilizados (ej. Aceite 15W-40, Filtros, Tornillos M8x20, etc.)" required></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="submit" class="btn btn-success">
+              <i class="fas fa-check"></i>
+              Completar Tarea
+            </button>
+            <button type="button" class="btn btn-secondary" id="cancelComplete">
+              <i class="fas fa-times"></i>
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para generar reporte -->
+  <div id="reportModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fas fa-file-pdf"></i> Generar Reporte de Mantenimiento</h3>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form id="reportForm">
+          <div class="input-group">
+            <i class="fas fa-map-marker-alt"></i>
+            <select id="reportSedeSelect" required>
+              <option value="">-- Selecciona una sede --</option>
+              <option value="all">Todas las sedes</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <i class="fas fa-calendar"></i>
+            <input type="month" id="reportMonth" required />
+          </div>
+          <div class="modal-actions">
+            <button type="submit" class="btn btn-report">
+              <i class="fas fa-download"></i>
+              Descargar Reporte PDF
+            </button>
+            <button type="button" class="btn btn-secondary" id="cancelReport">
+              <i class="fas fa-times"></i>
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  
+  <!-- jsPDF para generar reportes PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   
   <script src="firebase-config.js"></script>
   <script src="script.js"></script>

@@ -3,16 +3,49 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Gestor de Tareas</title>
+  <title>SIMA - Sistema de Gestión de Tareas</title>
   <link rel="stylesheet" href="style.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
   <div class="container">
-    <h1>Gestor de Tareas</h1>
-    <p>Organiza tus tareas por sedes y mantén todo sincronizado en la nube.</p>
-    <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: center;">
-      <a href="login.html" class="btn">Iniciar Sesión</a>
-      <a href="register.html" class="btn">Registrarse</a>
+    <div class="header-brand">
+      <div class="logo">
+        <i class="fas fa-tools"></i>
+        <span>SIMA</span>
+      </div>
+      <div class="brand-subtitle">Servicios Integrales de Mantenimiento</div>
+    </div>
+    
+    <div class="welcome-section">
+      <h1>Gestor de Tareas de Mantenimiento</h1>
+      <p>Organiza y administra las tareas de mantenimiento por sedes.</p>
+      
+      <div class="features">
+        <div class="feature">
+          <i class="fas fa-map-marker-alt"></i>
+          <span>Gestión por Sedes</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-tasks"></i>
+          <span>Control de Tareas</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-file-pdf"></i>
+          <span>Reportes PDF</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="auth-buttons">
+      <a href="login.html" class="btn btn-primary">
+        <i class="fas fa-sign-in-alt"></i>
+        Iniciar Sesión
+      </a>
+      <a href="register.html" class="btn btn-secondary">
+        <i class="fas fa-user-plus"></i>
+        Registrarse
+      </a>
     </div>
   </div>
 
