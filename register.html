@@ -3,18 +3,45 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Registro</title>
+  <title>SIMA - Registro</title>
   <link rel="stylesheet" href="style.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
   <div class="container">
-    <h1>Registro</h1>
-    <form id="registerForm">
-      <input id="registerEmail" type="email" placeholder="Correo electrónico" required />
-      <input id="registerPass" type="password" placeholder="Contraseña (min. 6 caracteres)" required minlength="6" />
-      <button type="submit">Registrar</button>
-    </form>
-    <a href="login.html">¿Ya tienes cuenta? Inicia sesión</a>
+    <div class="header-brand">
+      <div class="logo">
+        <i class="fas fa-tools"></i>
+        <span>SIMA</span>
+      </div>
+      <div class="brand-subtitle">Servicios Integrales de Mantenimiento</div>
+    </div>
+    
+    <div class="auth-section">
+      <h1><i class="fas fa-user-plus"></i> Registro</h1>
+      <form id="registerForm">
+        <div class="input-group">
+          <i class="fas fa-envelope"></i>
+          <input id="registerEmail" type="email" placeholder="Correo electrónico" required />
+        </div>
+        <div class="input-group">
+          <i class="fas fa-lock"></i>
+          <input id="registerPass" type="password" placeholder="Contraseña (min. 6 caracteres)" required minlength="6" />
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-user-plus"></i>
+          Registrar
+        </button>
+      </form>
+      <a href="login.html" class="auth-link">
+        <i class="fas fa-sign-in-alt"></i>
+        ¿Ya tienes cuenta? Inicia sesión
+      </a>
+      <a href="index.html" class="auth-link">
+        <i class="fas fa-arrow-left"></i>
+        Volver al inicio
+      </a>
+    </div>
   </div>
 
   <!-- Firebase SDK -->
