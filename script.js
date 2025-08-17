@@ -318,33 +318,33 @@ function generatePDF(tasks, client, sede, month, year) {
       const materialsLines = task.materials ? pdf.splitTextToSize(task.materials, 165) : [];
       const sedeLines = pdf.splitTextToSize(task.sede, 165);
       
-      // Calcular altura mínima necesaria
-      const baseHeight = 32; // Altura base para número, fecha, cliente, etc.
-      const descriptionHeight = Math.max(1, descriptionLines.length) * 4;
-      const materialsHeight = materialsLines.length > 0 ? (materialsLines.length * 4) + 8 : 8;
-      const sedeHeight = Math.max(1, sedeLines.length) * 4;
-      
+      // Calcular altura mínima necesaria (más compacto)
+      const baseHeight = 18; // Altura base para número, fecha, cliente, etc. (antes 32)
+      const descriptionHeight = Math.max(1, descriptionLines.length) * 3.2; // antes 4
+      const materialsHeight = materialsLines.length > 0 ? (materialsLines.length * 3.2) + 5 : 5; // antes 8
+      const sedeHeight = Math.max(1, sedeLines.length) * 3.2; // antes 4
+
       const totalHeight = baseHeight + descriptionHeight + materialsHeight + sedeHeight;
-      
+
       // Verificar si necesitamos una nueva página
       if (y + totalHeight > 270) {
         pdf.addPage();
         y = 20;
       }
-      
+
       // Rectángulo de fondo alternando colores
       const bgColor = index % 2 === 0 ? [248, 249, 250] : [255, 255, 255];
       pdf.setFillColor(...bgColor);
-      pdf.rect(18, y - 3, 174, totalHeight, 'F');
-      
+      pdf.rect(18, y - 2, 174, totalHeight, 'F'); // menos margen superior
+
       // Borde izquierdo azul
       pdf.setFillColor(44, 90, 160);
-      pdf.rect(18, y - 3, 3, totalHeight, 'F');
-      
+      pdf.rect(18, y - 2, 3, totalHeight, 'F');
+
       let currentY = y;
-      
+
       // LAYOUT VERTICAL OPTIMIZADO CON CLIENTE
-      
+
       // Fecha de completado
       let completedDateFormatted = 'Fecha no disponible';
       if (task.completedAt) {
@@ -366,72 +366,72 @@ function generatePDF(tasks, client, sede, month, year) {
         }
       }
       
-      pdf.setFontSize(9);
+      pdf.setFontSize(8); // más pequeño
       pdf.setTextColor(108, 117, 125);
       pdf.setFont('helvetica', 'normal');
       pdf.text(`Completada: ${completedDateFormatted}`, 190, currentY, { align: 'right' });
-      
-      currentY += 8;
-      
+
+      currentY += 5.5;
+
       // Cliente
-      pdf.setFontSize(9);
+      pdf.setFontSize(8);
       pdf.setTextColor(44, 90, 160);
       pdf.setFont('helvetica', 'bold');
       pdf.text('CLIENTE:', 25, currentY);
-      
+
       pdf.setTextColor(44, 62, 80);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(task.client, 50, currentY);
-      
-      currentY += 6;
-      
+      pdf.text(task.client, 45, currentY);
+
+      currentY += 4.5;
+
       // Sede
-      pdf.setFontSize(9);
+      pdf.setFontSize(8);
       pdf.setTextColor(44, 90, 160);
       pdf.setFont('helvetica', 'bold');
       pdf.text('SEDE:', 25, currentY);
-      
+
       pdf.setTextColor(44, 62, 80);
       pdf.setFont('helvetica', 'normal');
       sedeLines.forEach((line, i) => {
-        pdf.text(line, 45, currentY + (i * 4));
+        pdf.text(line, 45, currentY + (i * 3.2));
       });
-      
-      currentY += (sedeLines.length * 4) + 4;
-      
+
+      currentY += (sedeLines.length * 3.2) + 2.5;
+
       // Descripción completa
-      pdf.setFontSize(9);
+      pdf.setFontSize(8);
       pdf.setTextColor(44, 90, 160);
       pdf.setFont('helvetica', 'bold');
       pdf.text('DESCRIPCIÓN:', 25, currentY);
-      
+
       pdf.setTextColor(44, 62, 80);
       pdf.setFont('helvetica', 'normal');
       descriptionLines.forEach((line, i) => {
-        pdf.text(line, 25, currentY + 6 + (i * 4));
+        pdf.text(line, 25, currentY + 4 + (i * 3.2));
       });
-      
-      currentY += 6 + (descriptionLines.length * 4) + 4;
-      
+
+      currentY += 4 + (descriptionLines.length * 3.2) + 2.5;
+
       // Materiales completos
-      pdf.setFontSize(9);
+      pdf.setFontSize(8);
       pdf.setTextColor(44, 90, 160);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('MATERIALES UTILIZADOS:', 25, currentY);
-      
+      pdf.text('MATERIALES:', 25, currentY);
+
       if (materialsLines.length > 0) {
         pdf.setTextColor(44, 62, 80);
         pdf.setFont('helvetica', 'normal');
         materialsLines.forEach((line, i) => {
-          pdf.text(line, 25, currentY + 6 + (i * 4));
+          pdf.text(line, 25, currentY + 4 + (i * 3.2));
         });
       } else {
         pdf.setTextColor(108, 117, 125);
         pdf.setFont('helvetica', 'italic');
-        pdf.text('No especificado', 25, currentY + 6);
+        pdf.text('No especificado', 25, currentY + 4);
       }
-      
-      y += totalHeight + 8; // Espacio entre tareas
+
+      y += totalHeight + 4; // Menos espacio entre tareas
       
       // Línea separadora entre tareas
       if (index < tasks.length - 1) {
