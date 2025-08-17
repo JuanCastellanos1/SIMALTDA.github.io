@@ -231,211 +231,6 @@ textarea {
   font-size: 14px;
   border: none;
   cursor: pointer;
-  transition: all 0.3s ease;
-  justify-content: center;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #2c5aa0 0%, #1e3a8a 100%);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(44, 90, 160, 0.3);
-}
-
-.btn-secondary {
-  background: #6c757d;
-  color: white;
-}
-
-.btn-secondary:hover {
-  background: #5a6268;
-}
-
-.btn-success {
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-  color: white;
-}
-
-.btn-success:hover {
-  background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
-}
-
-.btn-report {
-  background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
-  color: white;
-}
-
-.btn-report:hover {
-  background: linear-gradient(135deg, #e83e8c 0%, #fd7e14 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
-}
-
-.logout-btn {
-  background: #dc3545;
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.3s ease;
-}
-
-.logout-btn:hover {
-  background: #c82333;
-  transform: translateY(-1px);
-}
-
-/* === Botones de autenticación === */
-.auth-buttons {
-  display: flex;
-  gap: 15px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.auth-link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #2c5aa0;
-  text-decoration: none;
-  text-align: center;
-  margin-top: 15px;
-  font-weight: 500;
-  transition: color 0.3s;
-}
-
-.auth-link:hover {
-  color: #1e3a8a;
-  text-decoration: underline;
-}
-
-/* === Sedes === */
-.sede-list { 
-  display: flex; 
-  flex-direction: column; 
-  gap: 12px; 
-}
-
-.sede-item {
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center;
-  padding: 15px 20px;
-  background: white;
-  border-radius: 10px;
-  border: 1px solid #e9ecef;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  transition: all 0.3s ease;
-}
-
-.sede-item:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  transform: translateY(-2px);
-}
-
-.sede-item .sede-name { 
-  font-weight: 600; 
-  color: #2c3e50;
-  font-size: 15px;
-  /* Arreglo para texto largo en sedes */
-  word-wrap: break-word;
-  word-break: break-word;
-  hyphens: auto;
-  max-width: 70%;
-}
-
-.sede-item .sede-actions { 
-  display: flex; 
-  gap: 10px; 
-  flex-shrink: 0;
-}
-
-.delete-sede-btn {
-  padding: 8px 12px;
-  background: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: background 0.3s;
-}
-
-.delete-sede-btn:hover { 
-  background: #c82333; 
-}
-
-/* === Lista de tareas por sede === */
-.sede {
-  border-radius: 12px;
-  padding: 20px;
-  background: white;
-  border: 1px solid #e9ecef;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-}
-
-.sede h3 { 
-  margin-bottom: 15px; 
-  color: #2c5aa0;
-  font-weight: 600;
-  font-size: 1.2rem;
-  border-bottom: 2px solid #f8f9fa;
-  padding-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  /* Arreglo para títulos largos de sede */
-  word-wrap: break-word;
-  word-break: break-word;
-  hyphens: auto;
-}
-
-.section-title { 
-  margin: 15px 0 10px 0; 
-  color: #495057; 
-  font-weight: 600;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* === Estilos para estructura jerárquica: Mes > Sede > Tareas === */
-
-/* Contenedor de mes (nivel 1) */
-.month-container {
-  margin: 15px 0;
-  border: 1px solid #e9ecef;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.08);
-}
-
-.month-toggle-btn {
-  width: 100%;
-  padding: 15px 20px;
-  background: linear-gradient(135deg, #2c5aa0 0%, #1e3a8a 100%);
-  border: none;
-  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -480,7 +275,180 @@ textarea {
   padding: 15px;
 }
 
-/* Contenedor de sede (nivel 2) */
+/* === Contenedores de cliente === */
+
+/* Cliente en tareas pendientes (nivel 1) */
+.client-container {
+  margin: 15px 0;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.06);
+}
+
+.client-toggle-btn {
+  width: 100%;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  transition: all 0.3s ease;
+  text-align: left;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.client-toggle-btn:hover {
+  background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
+}
+
+.client-arrow {
+  font-size: 12px;
+  transition: transform 0.3s ease;
+  color: rgba(255,255,255,0.9);
+  flex-shrink: 0;
+}
+
+.client-content {
+  transition: all 0.3s ease;
+  overflow: hidden;
+  background: #fafafa;
+  border-top: 1px solid #e9ecef;
+}
+
+.client-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+}
+
+.client-content.expanded {
+  max-height: none;
+  opacity: 1;
+  padding: 15px;
+}
+
+/* Cliente anidado en jerarquía (nivel 2 dentro de mes) */
+.client-container-nested {
+  margin: 10px 0;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background: white;
+  overflow: hidden;
+}
+
+.client-toggle-btn-nested {
+  width: 100%;
+  padding: 10px 15px;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  transition: all 0.3s ease;
+  text-align: left;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.client-toggle-btn-nested:hover {
+  background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
+}
+
+.client-content-nested {
+  transition: all 0.3s ease;
+  overflow: hidden;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+}
+
+.client-content-nested.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+}
+
+.client-content-nested.expanded {
+  max-height: none;
+  opacity: 1;
+  padding: 10px 12px 12px 12px;
+}
+
+/* === Contenedores de sede anidados === */
+
+/* Sede anidada en jerarquía (nivel 3 dentro de cliente) */
+.sede-container-nested {
+  margin: 8px 0;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: white;
+  overflow: hidden;
+}
+
+.sede-toggle-btn-nested {
+  width: 100%;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2c5aa0;
+  transition: all 0.3s ease;
+  text-align: left;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.sede-toggle-btn-nested:hover {
+  background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+  color: #1e3a8a;
+}
+
+.sede-arrow {
+  font-size: 10px;
+  transition: transform 0.3s ease;
+  color: #6c757d;
+  flex-shrink: 0;
+}
+
+.sede-content-nested {
+  transition: all 0.3s ease;
+  overflow: hidden;
+  background: #fafafa;
+  border-top: 1px solid #e9ecef;
+}
+
+.sede-content-nested.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+}
+
+.sede-content-nested.expanded {
+  max-height: none;
+  opacity: 1;
+  padding: 8px 10px 10px 10px;
+}
+
+/* Contenedor de sede (nivel 2 - versión original) */
 .sede-container {
   margin: 10px 0;
   border: 1px solid #dee2e6;
@@ -503,7 +471,6 @@ textarea {
   color: #2c5aa0;
   transition: all 0.3s ease;
   text-align: left;
-  /* Arreglo para nombres largos de sede en botones */
   word-wrap: break-word;
   word-break: break-word;
   hyphens: auto;
@@ -512,13 +479,6 @@ textarea {
 .sede-toggle-btn:hover {
   background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
   color: #1e3a8a;
-}
-
-.sede-arrow {
-  font-size: 12px;
-  transition: transform 0.3s ease;
-  color: #6c757d;
-  flex-shrink: 0;
 }
 
 .sede-content {
@@ -580,7 +540,6 @@ textarea {
   border: 1px solid #e9ecef;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   transition: all 0.3s ease;
-  /* Asegurar que el contenedor no se desborde */
   width: 100%;
   box-sizing: border-box;
 }
@@ -595,21 +554,19 @@ textarea {
   flex-direction: column; 
   gap: 6px; 
   flex: 1;
-  /* ARREGLO CLAVE: Prevenir que el texto se desborde */
-  min-width: 0; /* Permite que el elemento se encoja */
-  max-width: calc(100% - 120px); /* Reservar espacio para botones */
+  min-width: 0;
+  max-width: calc(100% - 120px);
 }
 
 .task .task-description {
   font-weight: 500;
   color: #2c3e50;
   line-height: 1.4;
-  /* ARREGLO CLAVE: Manejar texto largo correctamente */
   word-wrap: break-word;
   word-break: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
-  white-space: pre-wrap; /* Respetar saltos de línea */
+  white-space: pre-wrap;
   max-width: 100%;
 }
 
@@ -619,7 +576,6 @@ textarea {
   display: flex;
   align-items: center;
   gap: 5px;
-  /* ARREGLO: También aplicar a metadatos */
   word-wrap: break-word;
   word-break: break-word;
   overflow-wrap: break-word;
@@ -858,6 +814,24 @@ textarea {
   }
 }
 
+.client-content.expanded,
+.client-content-nested.expanded {
+  animation: expandClientContent 0.3s ease;
+}
+
+@keyframes expandClientContent {
+  from {
+    max-height: 0;
+    opacity: 0;
+    padding: 0;
+  }
+  to {
+    max-height: 800px;
+    opacity: 1;
+    padding: 15px;
+  }
+}
+
 .sede-content.expanded {
   animation: expandSedeContent 0.3s ease;
 }
@@ -875,6 +849,23 @@ textarea {
   }
 }
 
+.sede-content-nested.expanded {
+  animation: expandSedeContentNested 0.3s ease;
+}
+
+@keyframes expandSedeContentNested {
+  from {
+    max-height: 0;
+    opacity: 0;
+    padding: 0;
+  }
+  to {
+    max-height: 600px;
+    opacity: 1;
+    padding: 8px 10px 10px 10px;
+  }
+}
+
 /* === Efectos de hover mejorados === */
 .btn:hover {
   transform: translateY(-2px);
@@ -886,25 +877,32 @@ textarea {
 }
 
 /* === Estados de focus para accesibilidad === */
-.month-toggle-btn:focus {
+.month-toggle-btn:focus,
+.client-toggle-btn:focus,
+.client-toggle-btn-nested:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(44, 90, 160, 0.2);
 }
 
-.sede-toggle-btn:focus {
+.sede-toggle-btn:focus,
+.sede-toggle-btn-nested:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(44, 90, 160, 0.1);
 }
 
 /* === Estilos específicos para tareas dentro de contenedores colapsibles === */
-.sede-content .task {
+.sede-content .task,
+.sede-content-nested .task,
+.client-content .task {
   margin: 6px 0;
   background: #fff;
   border: 1px solid #e9ecef;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
-.sede-content .task:hover {
+.sede-content .task:hover,
+.sede-content-nested .task:hover,
+.client-content .task:hover {
   transform: translateX(3px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.12);
 }
@@ -923,6 +921,100 @@ textarea {
   0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
   70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
   100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+/* === Transiciones suaves para las flechas === */
+.month-arrow, .client-arrow, .sede-arrow {
+  transform-origin: center;
+}
+
+.month-toggle-btn .month-arrow.fa-chevron-down,
+.client-toggle-btn .client-arrow.fa-chevron-down,
+.client-toggle-btn-nested .client-arrow.fa-chevron-down,
+.sede-toggle-btn .sede-arrow.fa-chevron-down,
+.sede-toggle-btn-nested .sede-arrow.fa-chevron-down {
+  transform: rotate(0deg);
+}
+
+.month-toggle-btn .month-arrow.fa-chevron-right,
+.client-toggle-btn .client-arrow.fa-chevron-right,
+.client-toggle-btn-nested .client-arrow.fa-chevron-right,
+.sede-toggle-btn .sede-arrow.fa-chevron-right,
+.sede-toggle-btn-nested .sede-arrow.fa-chevron-right {
+  transform: rotate(-90deg);
+}
+
+/* === Efectos de selección y estado activo === */
+.month-toggle-btn:active,
+.client-toggle-btn:active,
+.client-toggle-btn-nested:active {
+  transform: scale(0.98);
+}
+
+.sede-toggle-btn:active,
+.sede-toggle-btn-nested:active {
+  transform: scale(0.98);
+}
+
+/* === Estados de carga específicos para contenedores === */
+.month-content.loading,
+.client-content.loading,
+.client-content-nested.loading,
+.sede-content.loading,
+.sede-content-nested.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60px;
+  color: #6c757d;
+  font-style: italic;
+}
+
+/* === Indicadores visuales para contenido vacío === */
+.month-content .no-tasks,
+.client-content .no-tasks,
+.client-content-nested .no-tasks,
+.sede-content .no-tasks,
+.sede-content-nested .no-tasks {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  padding: 20px;
+  margin: 10px 0;
+  background: transparent;
+}
+
+/* === Estilos para evitar el solapamiento de elementos === */
+.month-container + .month-container {
+  margin-top: 20px;
+}
+
+.client-container + .client-container {
+  margin-top: 15px;
+}
+
+.client-container-nested + .client-container-nested {
+  margin-top: 12px;
+}
+
+.sede-container + .sede-container,
+.sede-container-nested + .sede-container-nested {
+  margin-top: 10px;
+}
+
+/* === Estados de hover específicos para la jerarquía === */
+.month-container:hover {
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
+.client-container:hover,
+.client-container-nested:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.sede-container:hover,
+.sede-container-nested:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 /* === Responsive === */
@@ -973,17 +1065,20 @@ textarea {
     justify-content: flex-end;
   }
   
-  .sede-item { 
+  .sede-item,
+  .client-item { 
     flex-direction: column; 
     align-items: stretch; 
     gap: 10px;
   }
   
-  .sede-item .sede-name {
+  .sede-item .sede-name,
+  .client-item .client-name {
     max-width: 100%;
   }
   
-  .sede-actions {
+  .sede-actions,
+  .client-actions {
     justify-content: flex-end;
   }
   
@@ -1006,20 +1101,38 @@ textarea {
     font-size: 14px;
   }
   
-  .sede-toggle-btn {
+  .client-toggle-btn,
+  .client-toggle-btn-nested {
     padding: 10px 15px;
     font-size: 13px;
+  }
+  
+  .sede-toggle-btn,
+  .sede-toggle-btn-nested {
+    padding: 8px 12px;
+    font-size: 12px;
   }
   
   .month-content.expanded {
     padding: 12px;
   }
   
+  .client-content.expanded,
+  .client-content-nested.expanded {
+    padding: 10px;
+  }
+  
   .sede-content.expanded {
     padding: 10px 12px 12px 12px;
   }
   
-  .month-arrow, .sede-arrow {
+  .sede-content-nested.expanded {
+    padding: 8px 10px 10px 10px;
+  }
+  
+  .month-arrow, 
+  .client-arrow, 
+  .sede-arrow {
     font-size: 11px;
   }
   
@@ -1073,18 +1186,35 @@ textarea {
     gap: 8px;
   }
   
-  .sede-toggle-btn {
+  .client-toggle-btn,
+  .client-toggle-btn-nested {
     padding: 8px 12px;
     font-size: 12px;
     gap: 6px;
+  }
+  
+  .sede-toggle-btn,
+  .sede-toggle-btn-nested {
+    padding: 6px 10px;
+    font-size: 11px;
+    gap: 5px;
   }
   
   .month-content.expanded {
     padding: 10px;
   }
   
+  .client-content.expanded,
+  .client-content-nested.expanded {
+    padding: 8px;
+  }
+  
   .sede-content.expanded {
     padding: 8px 10px 10px 10px;
+  }
+  
+  .sede-content-nested.expanded {
+    padding: 6px 8px 8px 8px;
   }
   
   .task {
@@ -1102,67 +1232,6 @@ textarea {
 
 /* === Mejoras adicionales para la experiencia de usuario === */
 
-/* Transiciones suaves para las flechas */
-.month-arrow, .sede-arrow {
-  transform-origin: center;
-}
-
-.month-toggle-btn .month-arrow.fa-chevron-down,
-.sede-toggle-btn .sede-arrow.fa-chevron-down {
-  transform: rotate(0deg);
-}
-
-.month-toggle-btn .month-arrow.fa-chevron-right,
-.sede-toggle-btn .sede-arrow.fa-chevron-right {
-  transform: rotate(-90deg);
-}
-
-/* Efectos de selección y estado activo */
-.month-toggle-btn:active {
-  transform: scale(0.98);
-}
-
-.sede-toggle-btn:active {
-  transform: scale(0.98);
-}
-
-/* Mejoras en la legibilidad */
-.task .task-description {
-  word-wrap: break-word;
-  hyphens: auto;
-}
-
-/* Estados de carga específicos para contenedores */
-.month-content.loading,
-.sede-content.loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 60px;
-  color: #6c757d;
-  font-style: italic;
-}
-
-/* Indicadores visuales para contenido vacío */
-.month-content .no-tasks,
-.sede-content .no-tasks {
-  text-align: center;
-  color: #6c757d;
-  font-style: italic;
-  padding: 20px;
-  margin: 10px 0;
-  background: transparent;
-}
-
-/* Estilos para evitar el solapamiento de elementos */
-.month-container + .month-container {
-  margin-top: 20px;
-}
-
-.sede-container + .sede-container {
-  margin-top: 15px;
-}
-
 /* Mejoras en los contrastes para mejor accesibilidad */
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -1172,19 +1241,285 @@ textarea {
   }
 }
 
-/* Estados de hover específicos para la jerarquía */
-.month-container:hover {
-  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+.btn-primary {
+  background: linear-gradient(135deg, #2c5aa0 0%, #1e3a8a 100%);
+  color: white;
 }
 
-.sede-container:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+.btn-primary:hover {
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(44, 90, 160, 0.3);
 }
 
-.close {
-  color: #aaa;
-  font-size: 28px;
-  font-weight: bold;
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+}
+
+.btn-report {
+  background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
+  color: white;
+}
+
+.btn-report:hover {
+  background: linear-gradient(135deg, #e83e8c 0%, #fd7e14 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+}
+
+.logout-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 8px;
   cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+
+/* === Botones de autenticación === */
+.auth-buttons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.auth-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #2c5aa0;
+  text-decoration: none;
+  text-align: center;
+  margin-top: 15px;
+  font-weight: 500;
   transition: color 0.3s;
+}
+
+.auth-link:hover {
+  color: #1e3a8a;
+  text-decoration: underline;
+}
+
+/* === Clientes === */
+.client-list { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
+}
+
+.client-item {
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center;
+  padding: 15px 20px;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: all 0.3s ease;
+}
+
+.client-item:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+
+.client-item .client-name { 
+  font-weight: 600; 
+  color: #2c3e50;
+  font-size: 15px;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+  max-width: 70%;
+}
+
+.client-item .client-actions { 
+  display: flex; 
+  gap: 10px; 
+  flex-shrink: 0;
+}
+
+.delete-client-btn {
+  padding: 8px 12px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.3s;
+}
+
+.delete-client-btn:hover { 
+  background: #c82333; 
+}
+
+/* === Agrupación de sedes por cliente === */
+.client-sede-group {
+  margin-bottom: 20px;
+  background: white;
+  border-radius: 10px;
+  padding: 15px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.client-header {
+  color: #2c5aa0;
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #f8f9fa;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* === Sedes === */
+.sede-list { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
+}
+
+.sede-item {
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center;
+  padding: 12px 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  transition: all 0.3s ease;
+  margin-left: 20px;
+}
+
+.sede-item:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+
+.sede-item .sede-name { 
+  font-weight: 500; 
+  color: #2c3e50;
+  font-size: 14px;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+  max-width: 70%;
+}
+
+.sede-item .sede-actions { 
+  display: flex; 
+  gap: 10px; 
+  flex-shrink: 0;
+}
+
+.delete-sede-btn {
+  padding: 8px 12px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.3s;
+}
+
+.delete-sede-btn:hover { 
+  background: #c82333; 
+}
+
+/* === Lista de tareas por sede === */
+.sede {
+  border-radius: 12px;
+  padding: 20px;
+  background: white;
+  border: 1px solid #e9ecef;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.sede h3 { 
+  margin-bottom: 15px; 
+  color: #2c5aa0;
+  font-weight: 600;
+  font-size: 1.1rem;
+  border-bottom: 2px solid #f8f9fa;
+  padding-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.section-title { 
+  margin: 15px 0 10px 0; 
+  color: #495057; 
+  font-weight: 600;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* === Estilos para estructura jerárquica: Mes > Cliente > Sede > Tareas === */
+
+/* Contenedor de mes (nivel 1) */
+.month-container {
+  margin: 15px 0;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+}
+
+.month-toggle-btn {
+  width: 100%;
+  padding: 15px 20px;
+  background: linear-gradient(135deg, #2c5aa0 0%, #1e3a8a 100%);
+  border: none;
+  cursor: pointer;
+  color: #fff !important;
 }

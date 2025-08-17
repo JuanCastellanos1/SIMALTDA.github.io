@@ -35,10 +35,32 @@
       </div>
     </div>
 
+    <!-- Gestión de clientes -->
+    <div class="section-card">
+      <h2><i class="fas fa-users"></i> Gestionar Clientes</h2>
+      <form id="clientForm">
+        <div class="input-group">
+          <i class="fas fa-user"></i>
+          <input id="clientInput" type="text" placeholder="Nuevo cliente (ej. Empresa ABC, Corporación XYZ)" required />
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-plus"></i>
+          Añadir Cliente
+        </button>
+      </form>
+      <div class="client-list" id="clientList"></div>
+    </div>
+
     <!-- Gestión de sedes -->
     <div class="section-card">
       <h2><i class="fas fa-map-marker-alt"></i> Gestionar Sedes</h2>
       <form id="sedeForm">
+        <div class="input-group">
+          <i class="fas fa-users"></i>
+          <select id="sedeClientSelect" required>
+            <option value="">-- Selecciona un cliente --</option>
+          </select>
+        </div>
         <div class="input-group">
           <i class="fas fa-building"></i>
           <input id="sedeInput" type="text" placeholder="Nueva sede (ej. Sede Norte, Planta Industrial)" required />
@@ -56,9 +78,15 @@
       <h2><i class="fas fa-plus-circle"></i> Añadir Tarea de Mantenimiento</h2>
       <form id="taskForm">
         <div class="input-group">
+          <i class="fas fa-users"></i>
+          <select id="taskClientSelect" required>
+            <option value="">-- Selecciona un cliente --</option>
+          </select>
+        </div>
+        <div class="input-group">
           <i class="fas fa-map-marker-alt"></i>
-          <select id="sedeSelect" required>
-            <option value="">-- Selecciona una sede --</option>
+          <select id="sedeSelect" required disabled>
+            <option value="">-- Selecciona primero un cliente --</option>
           </select>
         </div>
         <div class="input-group">
@@ -72,9 +100,9 @@
       </form>
     </div>
 
-    <!-- Lista agrupada por sede y estado -->
+    <!-- Lista agrupada por mes, cliente, sede y tareas -->
     <div class="section-card">
-      <h2><i class="fas fa-list-ul"></i> Tareas por Sede</h2>
+      <h2><i class="fas fa-list-ul"></i> Tareas por Cliente y Sede</h2>
       <div id="taskList"></div>
     </div>
   </div>
@@ -118,10 +146,15 @@
       <div class="modal-body">
         <form id="reportForm">
           <div class="input-group">
+            <i class="fas fa-users"></i>
+            <select id="reportClientSelect" required>
+              <option value="">-- Selecciona un cliente --</option>
+            </select>
+          </div>
+          <div class="input-group">
             <i class="fas fa-map-marker-alt"></i>
-            <select id="reportSedeSelect" required>
-              <option value="">-- Selecciona una sede --</option>
-              <option value="all">Todas las sedes</option>
+            <select id="reportSedeSelect" required disabled>
+              <option value="">-- Selecciona primero un cliente --</option>
             </select>
           </div>
           <div class="input-group">

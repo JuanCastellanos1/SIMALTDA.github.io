@@ -40,11 +40,65 @@ function handleFirebaseError(error) {
   }
 }
 
-// Funciones para trabajar con Firestore
+// === FUNCIONES PARA CLIENTES ===
+async function getUserClients(userId) {
+  try {
+    const clientsRef = db.collection('users').doc(userId).collection('clients');
+    const snapshot = await clientsRef.orderBy('name').get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error obteniendo clientes:', error);
+    return [];
+  }
+}
+
+async function addClientToFirestore(userId, clientName) {
+  try {
+    await db.collection('users').doc(userId).collection('clients').add({
+      name: clientName,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error añadiendo cliente:', error);
+    return false;
+  }
+}
+
+async function deleteClientFromFirestore(userId, clientId, clientName) {
+  try {
+    // Eliminar el cliente
+    await db.collection('users').doc(userId).collection('clients').doc(clientId).delete();
+    
+    // Eliminar todas las sedes de este cliente
+    const sedesQuery = db.collection('users').doc(userId).collection('sedes').where('client', '==', clientName);
+    const sedesSnapshot = await sedesQuery.get();
+    
+    // Eliminar todas las tareas relacionadas con este cliente
+    const tasksQuery = db.collection('users').doc(userId).collection('tasks').where('client', '==', clientName);
+    const tasksSnapshot = await tasksQuery.get();
+    
+    const batch = db.batch();
+    sedesSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    tasksSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    
+    return true;
+  } catch (error) {
+    console.error('Error eliminando cliente:', error);
+    return false;
+  }
+}
+
+// === FUNCIONES PARA SEDES ===
 async function getUserSedes(userId) {
   try {
     const sedesRef = db.collection('users').doc(userId).collection('sedes');
-    const snapshot = await sedesRef.orderBy('name').get();
+    const snapshot = await sedesRef.orderBy('client').orderBy('name').get();
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
     console.error('Error obteniendo sedes:', error);
@@ -52,6 +106,58 @@ async function getUserSedes(userId) {
   }
 }
 
+async function getSedesByClient(userId, clientName) {
+  try {
+    const sedesRef = db.collection('users').doc(userId).collection('sedes');
+    const snapshot = await sedesRef.where('client', '==', clientName).orderBy('name').get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error obteniendo sedes por cliente:', error);
+    return [];
+  }
+}
+
+async function addSedeToFirestore(userId, sedeName, clientName) {
+  try {
+    console.log('Intentando añadir sede:', sedeName, 'para cliente:', clientName);
+    await db.collection('users').doc(userId).collection('sedes').add({
+      name: sedeName,
+      client: clientName,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    console.log('Sede añadida exitosamente');
+    return true;
+  } catch (error) {
+    console.error('Error añadiendo sede:', error);
+    return false;
+  }
+}
+
+async function deleteSedeFromFirestore(userId, sedeId, sedeName, clientName) {
+  try {
+    // Eliminar la sede
+    await db.collection('users').doc(userId).collection('sedes').doc(sedeId).delete();
+    
+    // Eliminar todas las tareas de esa sede y cliente
+    const tasksQuery = db.collection('users').doc(userId).collection('tasks')
+      .where('sede', '==', sedeName)
+      .where('client', '==', clientName);
+    const tasksSnapshot = await tasksQuery.get();
+    
+    const batch = db.batch();
+    tasksSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    
+    return true;
+  } catch (error) {
+    console.error('Error eliminando sede:', error);
+    return false;
+  }
+}
+
+// === FUNCIONES PARA TAREAS ===
 async function getUserTasks(userId) {
   try {
     const tasksRef = db.collection('users').doc(userId).collection('tasks');
@@ -63,7 +169,7 @@ async function getUserTasks(userId) {
   }
 }
 
-async function getTasksBySedeAndMonth(userId, sede, year, month) {
+async function getTasksByClientSedeAndMonth(userId, client, sede, year, month) {
   try {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -71,10 +177,11 @@ async function getTasksBySedeAndMonth(userId, sede, year, month) {
     console.log('Filtrando tareas:');
     console.log('Año:', year, 'Mes:', month);
     console.log('Buscando tareas entre:', startDate, 'y', endDate);
-    console.log('Sede:', sede);
+    console.log('Cliente:', client, 'Sede:', sede);
     
     let tasksRef = db.collection('users').doc(userId).collection('tasks')
-      .where('completed', '==', true);
+      .where('completed', '==', true)
+      .where('client', '==', client);
     
     if (sede !== 'all') {
       tasksRef = tasksRef.where('sede', '==', sede);
@@ -110,41 +217,6 @@ async function getTasksBySedeAndMonth(userId, sede, year, month) {
   } catch (error) {
     console.error('Error obteniendo tareas para reporte:', error);
     return [];
-  }
-}
-
-async function addSedeToFirestore(userId, sedeName) {
-  try {
-    await db.collection('users').doc(userId).collection('sedes').add({
-      name: sedeName,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    return true;
-  } catch (error) {
-    console.error('Error añadiendo sede:', error);
-    return false;
-  }
-}
-
-async function deleteSedeFromFirestore(userId, sedeId, sedeName) {
-  try {
-    // Eliminar la sede
-    await db.collection('users').doc(userId).collection('sedes').doc(sedeId).delete();
-    
-    // Eliminar todas las tareas de esa sede
-    const tasksQuery = db.collection('users').doc(userId).collection('tasks').where('sede', '==', sedeName);
-    const tasksSnapshot = await tasksQuery.get();
-    
-    const batch = db.batch();
-    tasksSnapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-    await batch.commit();
-    
-    return true;
-  } catch (error) {
-    console.error('Error eliminando sede:', error);
-    return false;
   }
 }
 
@@ -186,8 +258,8 @@ async function deleteTaskFromFirestore(userId, taskId) {
   }
 }
 
-// Función para generar PDF con jsPDF - VERSIÓN COMPLETAMENTE OPTIMIZADA
-function generatePDF(tasks, sede, month, year) {
+// Función para generar PDF con jsPDF - VERSIÓN CON CLIENTES
+function generatePDF(tasks, client, sede, month, year) {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
   
@@ -219,14 +291,16 @@ function generatePDF(tasks, sede, month, year) {
   
   pdf.setFontSize(12);
   pdf.setTextColor(108, 117, 125);
+  const clientText = `Cliente: ${client}`;
   const sedeText = sede === 'all' ? 'Todas las sedes' : `Sede: ${sede}`;
-  pdf.text(sedeText, 20, 52);
+  pdf.text(clientText, 20, 52);
+  pdf.text(sedeText, 20, 59);
   
   // Línea separadora
   pdf.setDrawColor(233, 236, 239);
-  pdf.line(20, 58, 190, 58);
+  pdf.line(20, 65, 190, 65);
   
-  let y = 70;
+  let y = 77;
   
   if (tasks.length === 0) {
     pdf.setFontSize(12);
@@ -245,9 +319,9 @@ function generatePDF(tasks, sede, month, year) {
       const sedeLines = pdf.splitTextToSize(task.sede, 165);
       
       // Calcular altura mínima necesaria
-      const baseHeight = 25; // Altura base para número, fecha, etc.
+      const baseHeight = 32; // Altura base para número, fecha, cliente, etc.
       const descriptionHeight = Math.max(1, descriptionLines.length) * 4;
-      const materialsHeight = materialsLines.length > 0 ? (materialsLines.length * 4) + 8 : 8; // +8 para el título "Materiales"
+      const materialsHeight = materialsLines.length > 0 ? (materialsLines.length * 4) + 8 : 8;
       const sedeHeight = Math.max(1, sedeLines.length) * 4;
       
       const totalHeight = baseHeight + descriptionHeight + materialsHeight + sedeHeight;
@@ -269,9 +343,9 @@ function generatePDF(tasks, sede, month, year) {
       
       let currentY = y;
       
-      // NUEVO LAYOUT VERTICAL OPTIMIZADO
+      // LAYOUT VERTICAL OPTIMIZADO CON CLIENTE
       
-      // Fecha de completado en la misma línea, alineada a la derecha
+      // Fecha de completado
       let completedDateFormatted = 'Fecha no disponible';
       if (task.completedAt) {
         let completedDate;
@@ -299,7 +373,19 @@ function generatePDF(tasks, sede, month, year) {
       
       currentY += 8;
       
-      // 2. Sede completa
+      // Cliente
+      pdf.setFontSize(9);
+      pdf.setTextColor(44, 90, 160);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('CLIENTE:', 25, currentY);
+      
+      pdf.setTextColor(44, 62, 80);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(task.client, 50, currentY);
+      
+      currentY += 6;
+      
+      // Sede
       pdf.setFontSize(9);
       pdf.setTextColor(44, 90, 160);
       pdf.setFont('helvetica', 'bold');
@@ -313,7 +399,7 @@ function generatePDF(tasks, sede, month, year) {
       
       currentY += (sedeLines.length * 4) + 4;
       
-      // 3. Descripción completa
+      // Descripción completa
       pdf.setFontSize(9);
       pdf.setTextColor(44, 90, 160);
       pdf.setFont('helvetica', 'bold');
@@ -327,7 +413,7 @@ function generatePDF(tasks, sede, month, year) {
       
       currentY += 6 + (descriptionLines.length * 4) + 4;
       
-      // 4. Materiales completos
+      // Materiales completos
       pdf.setFontSize(9);
       pdf.setTextColor(44, 90, 160);
       pdf.setFont('helvetica', 'bold');
@@ -374,7 +460,9 @@ function generatePDF(tasks, sede, month, year) {
   }
   
   // Descargar el PDF con nombre mejorado
-  const fileName = `SIMA_Reporte_${sede === 'all' ? 'TodasSedes' : sede.replace(/\s+/g, '_')}_${monthName}_${year}.pdf`;
+  const sedeFileName = sede === 'all' ? 'TodasSedes' : sede.replace(/\s+/g, '_');
+  const clientFileName = client.replace(/\s+/g, '_');
+  const fileName = `SIMA_Reporte_${clientFileName}_${sedeFileName}_${monthName}_${year}.pdf`;
   pdf.save(fileName);
 }
 
@@ -449,13 +537,25 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // DOM elements
       const logoutBtn = document.getElementById('logoutBtn');
+      
+      // Client elements
+      const clientForm = document.getElementById('clientForm');
+      const clientInput = document.getElementById('clientInput');
+      const clientList = document.getElementById('clientList');
+      
+      // Sede elements
       const sedeForm = document.getElementById('sedeForm');
       const sedeInput = document.getElementById('sedeInput');
       const sedeList = document.getElementById('sedeList');
-      const sedeSelect = document.getElementById('sedeSelect');
+      const sedeClientSelect = document.getElementById('sedeClientSelect');
+      
+      // Task elements
       const taskForm = document.getElementById('taskForm');
       const taskInput = document.getElementById('taskInput');
       const taskList = document.getElementById('taskList');
+      const taskClientSelect = document.getElementById('taskClientSelect');
+      const sedeSelect = document.getElementById('sedeSelect');
+      
       const reportBtn = document.getElementById('reportBtn');
       const toggleCompletedBtn = document.getElementById('toggleCompletedBtn');
       
@@ -466,22 +566,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const reportForm = document.getElementById('reportForm');
       const materialsInput = document.getElementById('materialsInput');
       const modalTaskDesc = document.getElementById('modalTaskDesc');
+      const reportClientSelect = document.getElementById('reportClientSelect');
       const reportSedeSelect = document.getElementById('reportSedeSelect');
       const reportMonth = document.getElementById('reportMonth');
 
+      let clients = [];
       let sedes = [];
       let tasks = [];
       let currentTaskToComplete = null;
       let showCompleted = false;
 
-      // CORRECCIÓN: Establecer mes actual en el selector de reporte
+      // Establecer mes actual en el selector de reporte
       const now = new Date();
-      const currentMonth = now.getMonth() + 1; // getMonth() retorna 0-11, necesitamos 1-12
+      const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
       reportMonth.value = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-      
-      console.log('Mes actual establecido:', currentMonth, '(' + now.toLocaleDateString('es-ES', { month: 'long' }) + ')');
-      console.log('Valor del selector:', reportMonth.value);
 
       // Cargar datos iniciales
       await loadAllData();
@@ -489,19 +588,126 @@ document.addEventListener('DOMContentLoaded', () => {
       // --- Funciones de carga de datos ---
       async function loadAllData() {
         taskList.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Cargando tareas...</div>';
-        await Promise.all([loadSedes(), loadTasks()]);
+        await Promise.all([loadClients(), loadSedes(), loadTasks()]);
+      }
+
+      async function loadClients() {
+        clients = await getUserClients(user.uid);
+        renderClientList();
+        updateClientSelects();
       }
 
       async function loadSedes() {
         sedes = await getUserSedes(user.uid);
         renderSedeList();
-        updateSedeSelect();
-        updateReportSedeSelect();
+        // Actualizar selectores de sede después de cargar sedes
+        await updateAllSedeSelectors();
       }
 
       async function loadTasks() {
         tasks = await getUserTasks(user.uid);
         renderTasks();
+      }
+
+      // --- Función para actualizar todos los selectores de sede ---
+      async function updateAllSedeSelectors() {
+        // Actualizar selector de tareas si hay cliente seleccionado
+        const selectedTaskClient = taskClientSelect.value;
+        if (selectedTaskClient) {
+          await updateSedeSelectsByClient(selectedTaskClient, sedeSelect);
+        }
+        
+        // Actualizar selector de reportes si hay cliente seleccionado
+        const selectedReportClient = reportClientSelect.value;
+        if (selectedReportClient) {
+          await updateReportSedesByClient(selectedReportClient);
+        }
+      }
+
+      // --- Clientes UI ---
+      function renderClientList() {
+        clientList.innerHTML = '';
+        if (!clients.length) {
+          clientList.innerHTML = `<div class="no-tasks">No hay clientes aún. Añade uno arriba.</div>`;
+          return;
+        }
+
+        clients.forEach((client) => {
+          const item = document.createElement('div');
+          item.className = 'client-item fade-in';
+          item.innerHTML = `
+            <div class="client-name">
+              <i class="fas fa-user"></i>
+              ${client.name}
+            </div>
+            <div class="client-actions">
+              <button class="delete-client-btn" data-client-id="${client.id}" data-client-name="${client.name}">
+                <i class="fas fa-trash"></i>
+                Eliminar
+              </button>
+            </div>
+          `;
+          item.querySelector('.delete-client-btn').addEventListener('click', (e) => {
+            const clientId = e.target.closest('button').getAttribute('data-client-id');
+            const clientName = e.target.closest('button').getAttribute('data-client-name');
+            deleteClient(clientId, clientName);
+          });
+          clientList.appendChild(item);
+        });
+      }
+
+      function updateClientSelects() {
+        // Actualizar selector de clientes para sedes
+        sedeClientSelect.innerHTML = `<option value="">-- Selecciona un cliente --</option>`;
+        clients.forEach(client => {
+          const opt = document.createElement('option');
+          opt.value = client.name;
+          opt.textContent = client.name;
+          sedeClientSelect.appendChild(opt);
+        });
+
+        // Actualizar selector de clientes para tareas
+        taskClientSelect.innerHTML = `<option value="">-- Selecciona un cliente --</option>`;
+        clients.forEach(client => {
+          const opt = document.createElement('option');
+          opt.value = client.name;
+          opt.textContent = client.name;
+          taskClientSelect.appendChild(opt);
+        });
+
+        // Actualizar selector de clientes para reportes
+        reportClientSelect.innerHTML = `<option value="">-- Selecciona un cliente --</option>`;
+        clients.forEach(client => {
+          const opt = document.createElement('option');
+          opt.value = client.name;
+          opt.textContent = client.name;
+          reportClientSelect.appendChild(opt);
+        });
+      }
+
+      async function addClient(name) {
+        if (clients.some(c => c.name === name)) {
+          alert('El cliente ya existe');
+          return;
+        }
+        
+        const success = await addClientToFirestore(user.uid, name);
+        if (success) {
+          await loadClients();
+        } else {
+          alert('Error al añadir el cliente');
+        }
+      }
+
+      async function deleteClient(clientId, clientName) {
+        if (!confirm(`Se eliminará el cliente "${clientName}", todas sus sedes y tareas relacionadas. ¿Continuar?`)) return;
+        
+        const success = await deleteClientFromFirestore(user.uid, clientId, clientName);
+        if (success) {
+          await loadAllData();
+        } else {
+          alert('Error al eliminar el cliente');
+        }
       }
 
       // --- Sedes UI ---
@@ -512,46 +718,100 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        sedes.forEach((sede) => {
-          const item = document.createElement('div');
-          item.className = 'sede-item fade-in';
-          item.innerHTML = `
-            <div class="sede-name">
-              <i class="fas fa-building"></i>
-              ${sede.name}
-            </div>
-            <div class="sede-actions">
-              <button class="delete-sede-btn" data-sede-id="${sede.id}" data-sede-name="${sede.name}">
-                <i class="fas fa-trash"></i>
-                Eliminar
-              </button>
-            </div>
+        // Agrupar sedes por cliente
+        const sedesByClient = {};
+        sedes.forEach(sede => {
+          if (!sedesByClient[sede.client]) {
+            sedesByClient[sede.client] = [];
+          }
+          sedesByClient[sede.client].push(sede);
+        });
+
+        Object.keys(sedesByClient).forEach(clientName => {
+          // Contenedor del cliente (acordeón)
+          const clientContainer = document.createElement('div');
+          clientContainer.className = 'sede-container';
+
+          // Botón del cliente
+          const clientButton = document.createElement('button');
+          clientButton.className = 'sede-toggle-btn';
+          clientButton.innerHTML = `
+            <i class="fas fa-chevron-right sede-arrow"></i>
+            <i class="fas fa-user"></i>
+            ${clientName}
+            <span class="badge-small">${sedesByClient[clientName].length}</span>
           `;
-          item.querySelector('.delete-sede-btn').addEventListener('click', (e) => {
-            const sedeId = e.target.closest('button').getAttribute('data-sede-id');
-            const sedeName = e.target.closest('button').getAttribute('data-sede-name');
-            deleteSede(sedeId, sedeName);
+
+          // Contenido de las sedes (colapsado por defecto)
+          const sedeContent = document.createElement('div');
+          sedeContent.className = 'sede-content collapsed';
+
+          // Añadir cada sede como fila con botón eliminar
+          sedesByClient[clientName].forEach(sede => {
+            const sedeRow = document.createElement('div');
+            sedeRow.className = 'sede-item';
+            sedeRow.style.display = 'flex';
+            sedeRow.style.alignItems = 'center';
+            sedeRow.style.justifyContent = 'space-between';
+            sedeRow.style.padding = '6px 0';
+            sedeRow.innerHTML = `
+              <span><i class="fas fa-building"></i> ${sede.name}</span>
+              <button class="delete-sede-btn" data-sede-id="${sede.id}" data-sede-name="${sede.name}" data-client-name="${sede.client}" style="margin-left:10px;">
+                <i class="fas fa-trash"></i>
+              </button>
+            `;
+            sedeRow.querySelector('.delete-sede-btn').addEventListener('click', (e) => {
+              const sedeId = e.target.closest('button').getAttribute('data-sede-id');
+              const sedeName = e.target.closest('button').getAttribute('data-sede-name');
+              const clientName = e.target.closest('button').getAttribute('data-client-name');
+              deleteSede(sedeId, sedeName, clientName);
+            });
+            sedeContent.appendChild(sedeRow);
           });
-          sedeList.appendChild(item);
+
+          // Evento para expandir/colapsar
+          clientButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isCollapsed = sedeContent.classList.contains('collapsed');
+            const arrow = clientButton.querySelector('.sede-arrow');
+            if (isCollapsed) {
+              sedeContent.classList.remove('collapsed');
+              sedeContent.classList.add('expanded');
+              arrow.classList.remove('fa-chevron-right');
+              arrow.classList.add('fa-chevron-down');
+            } else {
+              sedeContent.classList.remove('expanded');
+              sedeContent.classList.add('collapsed');
+              arrow.classList.remove('fa-chevron-down');
+              arrow.classList.add('fa-chevron-right');
+            }
+          });
+
+          clientContainer.appendChild(clientButton);
+          clientContainer.appendChild(sedeContent);
+          sedeList.appendChild(clientContainer);
         });
       }
 
-      function updateSedeSelect() {
-        sedeSelect.innerHTML = `<option value="">-- Selecciona una sede --</option>`;
-        sedes.forEach(sede => {
+      async function updateSedeSelectsByClient(clientName, selectElement) {
+        selectElement.innerHTML = `<option value="">-- Selecciona una sede --</option>`;
+        selectElement.disabled = false;
+        
+        const clientSedes = await getSedesByClient(user.uid, clientName);
+        clientSedes.forEach(sede => {
           const opt = document.createElement('option');
           opt.value = sede.name;
           opt.textContent = sede.name;
-          sedeSelect.appendChild(opt);
+          selectElement.appendChild(opt);
         });
       }
 
-      function updateReportSedeSelect() {
-        reportSedeSelect.innerHTML = `
-          <option value="">-- Selecciona una sede --</option>
-          <option value="all">Todas las sedes</option>
-        `;
-        sedes.forEach(sede => {
+      async function updateReportSedesByClient(clientName) {
+        reportSedeSelect.innerHTML = `<option value="">-- Selecciona una sede --</option><option value="all">Todas las sedes</option>`;
+        reportSedeSelect.disabled = false;
+        
+        const clientSedes = await getSedesByClient(user.uid, clientName);
+        clientSedes.forEach(sede => {
           const opt = document.createElement('option');
           opt.value = sede.name;
           opt.textContent = sede.name;
@@ -559,24 +819,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      async function addSede(name) {
-        if (sedes.some(s => s.name === name)) {
-          alert('La sede ya existe');
-          return;
+      async function addSede(name, clientName) {
+        console.log('addSede llamada con:', name, clientName);
+        if (sedes.some(s => s.name === name && s.client === clientName)) {
+          alert('La sede ya existe para este cliente');
+          return false;
         }
         
-        const success = await addSedeToFirestore(user.uid, name);
+        const success = await addSedeToFirestore(user.uid, name, clientName);
         if (success) {
+          console.log('Sede añadida, recargando datos...');
+          // Recargar sedes y actualizar todos los selectores
           await loadSedes();
+          return true;
         } else {
           alert('Error al añadir la sede');
+          return false;
         }
       }
 
-      async function deleteSede(sedeId, sedeName) {
-        if (!confirm(`Se eliminará la sede "${sedeName}" y todas las tareas relacionadas. ¿Continuar?`)) return;
+      async function deleteSede(sedeId, sedeName, clientName) {
+        if (!confirm(`Se eliminará la sede "${sedeName}" del cliente "${clientName}" y todas las tareas relacionadas. ¿Continuar?`)) return;
         
-        const success = await deleteSedeFromFirestore(user.uid, sedeId, sedeName);
+        const success = await deleteSedeFromFirestore(user.uid, sedeId, sedeName, clientName);
         if (success) {
           await loadAllData();
         } else {
@@ -587,8 +852,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // --- Tasks UI ---
       function renderTasks() {
         taskList.innerHTML = '';
-        if (!sedes.length) {
-          taskList.innerHTML = `<div class="no-tasks">No hay sedes para agrupar tareas. Añade una sede primero.</div>`;
+        if (!clients.length) {
+          taskList.innerHTML = `<div class="no-tasks">No hay clientes para agrupar tareas. Añade un cliente primero.</div>`;
           return;
         }
 
@@ -596,32 +861,84 @@ document.addEventListener('DOMContentLoaded', () => {
         const filteredTasks = showCompleted ? tasks.filter(t => t.completed) : tasks.filter(t => !t.completed);
 
         if (showCompleted) {
-          // Para tareas completadas, usar estructura jerárquica Mes > Sede > Tareas
+          // Para tareas completadas, usar estructura jerárquica Mes > Cliente > Sede > Tareas
           renderCompletedTasksHierarchy(filteredTasks);
         } else {
-          // Para tareas pendientes, mantener el sistema actual
+          // Para tareas pendientes, usar estructura Cliente > Sede > Tareas
           renderPendingTasks(filteredTasks);
         }
       }
 
       function renderPendingTasks(pendingTasks) {
-        sedes.forEach(sede => {
-          const tasksForSede = pendingTasks.filter(t => t.sede === sede.name);
+        // Agrupar por cliente y luego por sede
+        const tasksByClient = {};
+        pendingTasks.forEach(task => {
+          if (!tasksByClient[task.client]) {
+            tasksByClient[task.client] = {};
+          }
+          if (!tasksByClient[task.client][task.sede]) {
+            tasksByClient[task.client][task.sede] = [];
+          }
+          tasksByClient[task.client][task.sede].push(task);
+        });
+
+        Object.keys(tasksByClient).forEach(clientName => {
+          const clientContainer = document.createElement('div');
+          clientContainer.className = 'client-container';
           
-          if (tasksForSede.length === 0) return;
+          // Botón del cliente
+          const clientButton = document.createElement('button');
+          clientButton.className = 'client-toggle-btn';
           
-          const sedeDiv = document.createElement('div');
-          sedeDiv.className = 'sede slide-up';
-          sedeDiv.innerHTML = `
-            <h3>
-              <i class="fas fa-map-marker-alt"></i>
-              ${sede.name} (${tasksForSede.length} pendiente${tasksForSede.length !== 1 ? 's' : ''})
-            </h3>
+          // Contar tareas totales del cliente
+          const clientTaskCount = Object.values(tasksByClient[clientName]).reduce((total, sedes) => total + sedes.length, 0);
+          
+          clientButton.innerHTML = `
+            <i class="fas fa-chevron-right client-arrow"></i>
+            <i class="fas fa-user"></i>
+            ${clientName}
+            <span class="badge">${clientTaskCount}</span>
           `;
+          
+          // Contenido del cliente
+          const clientContent = document.createElement('div');
+          clientContent.className = 'client-content collapsed';
+          
+          Object.keys(tasksByClient[clientName]).forEach(sedeName => {
+            const sedeDiv = document.createElement('div');
+            sedeDiv.className = 'sede slide-up';
+            sedeDiv.innerHTML = `
+              <h3>
+                <i class="fas fa-map-marker-alt"></i>
+                ${sedeName} (${tasksByClient[clientName][sedeName].length} pendiente${tasksByClient[clientName][sedeName].length !== 1 ? 's' : ''})
+              </h3>
+            `;
 
-          tasksForSede.forEach(t => sedeDiv.appendChild(createTaskElement(t)));
+            tasksByClient[clientName][sedeName].forEach(task => sedeDiv.appendChild(createTaskElement(task)));
+            clientContent.appendChild(sedeDiv);
+          });
 
-          taskList.appendChild(sedeDiv);
+          // Event listener para toggle de cliente
+          clientButton.addEventListener('click', () => {
+            const isCollapsed = clientContent.classList.contains('collapsed');
+            const arrow = clientButton.querySelector('.client-arrow');
+            
+            if (isCollapsed) {
+              clientContent.classList.remove('collapsed');
+              clientContent.classList.add('expanded');
+              arrow.classList.remove('fa-chevron-right');
+              arrow.classList.add('fa-chevron-down');
+            } else {
+              clientContent.classList.remove('expanded');
+              clientContent.classList.add('collapsed');
+              arrow.classList.remove('fa-chevron-down');
+              arrow.classList.add('fa-chevron-right');
+            }
+          });
+
+          clientContainer.appendChild(clientButton);
+          clientContainer.appendChild(clientContent);
+          taskList.appendChild(clientContainer);
         });
 
         if (pendingTasks.length === 0) {
@@ -629,7 +946,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // NUEVA FUNCIÓN: Estructura jerárquica Mes > Sede > Tareas - CORREGIDA
       function renderCompletedTasksHierarchy(completedTasks) {
         if (completedTasks.length === 0) {
           taskList.innerHTML = `<div class="no-tasks">No hay tareas completadas aún.</div>`;
@@ -645,16 +961,13 @@ document.addEventListener('DOMContentLoaded', () => {
         sortedMonths.forEach(monthKey => {
           const monthTasks = tasksByMonth[monthKey];
           
-          // CORRECCIÓN: Crear fecha directamente con año y mes separados para evitar problemas de zona horaria
           const [year, month] = monthKey.split('-').map(Number);
-          const monthDate = new Date(year, month - 1, 1); // month - 1 porque Date usa índices 0-11
+          const monthDate = new Date(year, month - 1, 1);
           
           const monthName = monthDate.toLocaleDateString('es-ES', { 
             year: 'numeric', 
             month: 'long' 
           });
-          
-          console.log('Renderizando mes:', monthKey, '-> Fecha creada:', monthDate, '-> Nombre:', monthName);
           
           // Contenedor del mes (nivel 1)
           const monthContainer = document.createElement('div');
@@ -667,71 +980,131 @@ document.addEventListener('DOMContentLoaded', () => {
             <i class="fas fa-chevron-right month-arrow"></i>
             <i class="fas fa-calendar"></i>
             ${monthName}
-            <span class="badge">${monthTasks.length}</span>
           `;
           
           // Contenido del mes
           const monthContent = document.createElement('div');
           monthContent.className = 'month-content collapsed';
           
-          // Agrupar tareas del mes por sede
-          const tasksBySede = {};
+          // Agrupar tareas del mes por cliente
+          const tasksByClient = {};
           monthTasks.forEach(task => {
-            if (!tasksBySede[task.sede]) {
-              tasksBySede[task.sede] = [];
+            if (!tasksByClient[task.client]) {
+              tasksByClient[task.client] = {};
             }
-            tasksBySede[task.sede].push(task);
+            if (!tasksByClient[task.client][task.sede]) {
+              tasksByClient[task.client][task.sede] = [];
+            }
+            tasksByClient[task.client][task.sede].push(task);
           });
           
-          // Crear contenedores para cada sede dentro del mes
-          Object.keys(tasksBySede).forEach(sedeName => {
-            const sedeTasks = tasksBySede[sedeName];
+          // Crear contenedores para cada cliente dentro del mes
+          Object.keys(tasksByClient).forEach(clientName => {
+            const clientTasks = Object.values(tasksByClient[clientName]).flat();
             
-            // Contenedor de la sede (nivel 2)
-            const sedeContainer = document.createElement('div');
-            sedeContainer.className = 'sede-container';
+            // Contenedor del cliente (nivel 2)
+            const clientContainer = document.createElement('div');
+            clientContainer.className = 'client-container-nested';
             
-            // Botón de la sede
-            const sedeButton = document.createElement('button');
-            sedeButton.className = 'sede-toggle-btn';
-            sedeButton.innerHTML = `
-              <i class="fas fa-chevron-right sede-arrow"></i>
-              <i class="fas fa-building"></i>
-              ${sedeName}
-              <span class="badge-small">${sedeTasks.length}</span>
+            // Botón del cliente
+            const clientButton = document.createElement('button');
+            clientButton.className = 'client-toggle-btn-nested';
+            clientButton.innerHTML = `
+              <i class="fas fa-chevron-right client-arrow"></i>
+              <i class="fas fa-user"></i>
+              ${clientName}
+              <span class="badge-small">${clientTasks.length}</span>
             `;
             
-            // Contenido de la sede
-            const sedeContent = document.createElement('div');
-            sedeContent.className = 'sede-content collapsed';
+            // Contenido del cliente
+            const clientContent = document.createElement('div');
+            clientContent.className = 'client-content-nested collapsed';
             
-            // Agregar tareas a la sede
-            sedeTasks.forEach(task => {
-              sedeContent.appendChild(createTaskElement(task));
+            // Crear contenedores para cada sede dentro del cliente
+            Object.keys(tasksByClient[clientName]).forEach(sedeName => {
+              const sedeTasks = tasksByClient[clientName][sedeName];
+              
+              // Contenedor de la sede (nivel 3)
+              const sedeContainer = document.createElement('div');
+              sedeContainer.className = 'sede-container-nested';
+              
+              // Botón de la sede
+              const sedeButton = document.createElement('button');
+              sedeButton.className = 'sede-toggle-btn-nested';
+              sedeButton.innerHTML = `
+                <i class="fas fa-chevron-right sede-arrow"></i>
+                <i class="fas fa-building"></i>
+                ${sedeName}
+                <span class="badge-small">${sedeTasks.length}</span>
+              `;
+              
+              // Contenido de la sede
+              const sedeContent = document.createElement('div');
+              sedeContent.className = 'sede-content-nested collapsed';
+              
+              // Agregar tareas a la sede
+              sedeTasks.forEach(task => {
+                sedeContent.appendChild(createTaskElement(task));
+              });
+              
+              // Event listener para toggle de sede
+              sedeButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isCollapsed = sedeContent.classList.contains('collapsed');
+                const arrow = sedeButton.querySelector('.sede-arrow');
+                
+                if (isCollapsed) {
+                  sedeContent.classList.remove('collapsed');
+                  sedeContent.classList.add('expanded');
+                  arrow.classList.remove('fa-chevron-right');
+                  arrow.classList.add('fa-chevron-down');
+                } else {
+                  sedeContent.classList.remove('expanded');
+                  sedeContent.classList.add('collapsed');
+                  arrow.classList.remove('fa-chevron-down');
+                  arrow.classList.add('fa-chevron-right');
+                }
+              });
+              
+              sedeContainer.appendChild(sedeButton);
+              sedeContainer.appendChild(sedeContent);
+              clientContent.appendChild(sedeContainer);
             });
             
-            // Event listener para toggle de sede
-            sedeButton.addEventListener('click', (e) => {
+            // Event listener para toggle de cliente
+            clientButton.addEventListener('click', (e) => {
               e.stopPropagation();
-              const isCollapsed = sedeContent.classList.contains('collapsed');
-              const arrow = sedeButton.querySelector('.sede-arrow');
+              const isCollapsed = clientContent.classList.contains('collapsed');
+              const arrow = clientButton.querySelector('.client-arrow');
               
               if (isCollapsed) {
-                sedeContent.classList.remove('collapsed');
-                sedeContent.classList.add('expanded');
+                clientContent.classList.remove('collapsed');
+                clientContent.classList.add('expanded');
                 arrow.classList.remove('fa-chevron-right');
                 arrow.classList.add('fa-chevron-down');
               } else {
-                sedeContent.classList.remove('expanded');
-                sedeContent.classList.add('collapsed');
+                clientContent.classList.remove('expanded');
+                clientContent.classList.add('collapsed');
                 arrow.classList.remove('fa-chevron-down');
                 arrow.classList.add('fa-chevron-right');
+                
+                // Colapsar todas las sedes cuando se colapsa el cliente
+                const sedeContents = clientContent.querySelectorAll('.sede-content-nested');
+                const sedeArrows = clientContent.querySelectorAll('.sede-arrow');
+                sedeContents.forEach(content => {
+                  content.classList.remove('expanded');
+                  content.classList.add('collapsed');
+                });
+                sedeArrows.forEach(arrow => {
+                  arrow.classList.remove('fa-chevron-down');
+                  arrow.classList.add('fa-chevron-right');
+                });
               }
             });
             
-            sedeContainer.appendChild(sedeButton);
-            sedeContainer.appendChild(sedeContent);
-            monthContent.appendChild(sedeContainer);
+            clientContainer.appendChild(clientButton);
+            clientContainer.appendChild(clientContent);
+            monthContent.appendChild(clientContainer);
           });
           
           // Event listener para toggle de mes
@@ -750,9 +1123,20 @@ document.addEventListener('DOMContentLoaded', () => {
               arrow.classList.remove('fa-chevron-down');
               arrow.classList.add('fa-chevron-right');
               
-              // Colapsar todas las sedes cuando se colapsa el mes
-              const sedeContents = monthContent.querySelectorAll('.sede-content');
+              // Colapsar todos los clientes y sedes cuando se colapsa el mes
+              const clientContents = monthContent.querySelectorAll('.client-content-nested');
+              const clientArrows = monthContent.querySelectorAll('.client-arrow');
+              const sedeContents = monthContent.querySelectorAll('.sede-content-nested');
               const sedeArrows = monthContent.querySelectorAll('.sede-arrow');
+              
+              clientContents.forEach(content => {
+                content.classList.remove('expanded');
+                content.classList.add('collapsed');
+              });
+              clientArrows.forEach(arrow => {
+                arrow.classList.remove('fa-chevron-down');
+                arrow.classList.add('fa-chevron-right');
+              });
               sedeContents.forEach(content => {
                 content.classList.remove('expanded');
                 content.classList.add('collapsed');
@@ -784,15 +1168,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
           
-          // CORRECCIÓN: Usar getFullYear() y getMonth() + 1 para evitar problemas de zona horaria
           const year = completedDate.getFullYear();
-          const month = completedDate.getMonth() + 1; // getMonth() retorna 0-11, necesitamos 1-12
+          const month = completedDate.getMonth() + 1;
           const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-          
-          console.log('Agrupando tarea:', task.description.substring(0, 30) + '...');
-          console.log('Fecha completada:', completedDate);
-          console.log('Año extraído:', year, 'Mes extraído:', month);
-          console.log('Clave del mes:', monthKey);
           
           if (!grouped[monthKey]) {
             grouped[monthKey] = [];
@@ -834,6 +1212,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         left.innerHTML = `
           <div class="task-description">${task.description}</div>
+          <div class="meta">
+            <i class="fas fa-user"></i>
+            Cliente: ${task.client}
+          </div>
+          <div class="meta">
+            <i class="fas fa-building"></i>
+            Sede: ${task.sede}
+          </div>
           <div class="meta">
             <i class="fas fa-calendar-plus"></i>
             Inscrita: ${createdAtStr}
@@ -909,9 +1295,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // CRUD tasks
-      async function addTask(description, sede) {
+      async function addTask(description, client, sede) {
         const newTask = {
           description,
+          client,
           sede,
           completed: false,
           completedAt: null,
@@ -957,18 +1344,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // --- Generar reporte ---
-      async function generateReport(sede, month) {
+      async function generateReport(client, sede, month) {
         const [year, monthNum] = month.split('-').map(Number);
         
         console.log('Generando reporte:');
-        console.log('Sede:', sede);
+        console.log('Cliente:', client, 'Sede:', sede);
         console.log('Mes seleccionado:', month);
-        console.log('Año:', year);
-        console.log('Mes número:', monthNum);
+        console.log('Año:', year, 'Mes número:', monthNum);
         
         try {
-          const reportTasks = await getTasksBySedeAndMonth(user.uid, sede, year, monthNum);
-          generatePDF(reportTasks, sede, monthNum, year);
+          const reportTasks = await getTasksByClientSedeAndMonth(user.uid, client, sede, year, monthNum);
+          generatePDF(reportTasks, client, sede, monthNum, year);
           hideReportModal();
         } catch (error) {
           console.error('Error generando reporte:', error);
@@ -987,23 +1373,132 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
+      // Client form
+      clientForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = clientInput.value.trim();
+        if (!name) return;
+        
+        const submitBtn = clientForm.querySelector('button[type="submit"]');
+        const originalHTML = submitBtn.innerHTML;
+        
+        try {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Añadiendo...';
+          
+          await addClient(name);
+          clientInput.value = '';
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalHTML;
+        }
+      });
+
+      // Sede form - COMPLETAMENTE CORREGIDO
       sedeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = sedeInput.value.trim();
-        if (!name) return;
-        await addSede(name);
-        sedeInput.value = '';
+        const client = sedeClientSelect.value;
+        
+        console.log('Submit sede form:', {name, client});
+        
+        if (!name) {
+          alert('Ingrese nombre de la sede');
+          return;
+        }
+        if (!client) {
+          alert('Seleccione un cliente');
+          return;
+        }
+        
+        const submitBtn = sedeForm.querySelector('button[type="submit"]');
+        const originalHTML = submitBtn.innerHTML;
+        
+        try {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Añadiendo...';
+          
+          const success = await addSede(name, client);
+          if (success) {
+            sedeInput.value = '';
+            sedeClientSelect.value = '';
+            
+            // Mostrar mensaje de éxito temporal
+            const existingMessage = sedeForm.querySelector('.success-message');
+            if (existingMessage) {
+              existingMessage.remove();
+            }
+            
+            const successMsg = document.createElement('div');
+            successMsg.className = 'success-message';
+            successMsg.style.cssText = 'color: #28a745; font-weight: 500; margin-top: 10px; padding: 10px; background: #d4edda; border-radius: 5px; border: 1px solid #c3e6cb;';
+            successMsg.innerHTML = '<i class="fas fa-check-circle"></i> Sede añadida correctamente';
+            
+            sedeForm.appendChild(successMsg);
+            
+            // Remover mensaje después de 3 segundos
+            setTimeout(() => {
+              if (successMsg && successMsg.parentNode) {
+                successMsg.parentNode.removeChild(successMsg);
+              }
+            }, 3000);
+          }
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalHTML;
+        }
       });
 
+      // Task form
       taskForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const desc = taskInput.value.trim();
+        const client = taskClientSelect.value;
         const sede = sedeSelect.value;
+        
         if (!desc) return alert('Ingrese descripción de la tarea');
+        if (!client) return alert('Seleccione un cliente');
         if (!sede) return alert('Seleccione una sede');
-        await addTask(desc, sede);
-        taskInput.value = '';
-        sedeSelect.value = '';
+        
+        const submitBtn = taskForm.querySelector('button[type="submit"]');
+        const originalHTML = submitBtn.innerHTML;
+        
+        try {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Añadiendo...';
+          
+          await addTask(desc, client, sede);
+          taskInput.value = '';
+          taskClientSelect.value = '';
+          sedeSelect.value = '';
+          sedeSelect.disabled = true;
+          sedeSelect.innerHTML = '<option value="">-- Selecciona primero un cliente --</option>';
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalHTML;
+        }
+      });
+
+      // Client select change for tasks
+      taskClientSelect.addEventListener('change', async (e) => {
+        const selectedClient = e.target.value;
+        if (selectedClient) {
+          await updateSedeSelectsByClient(selectedClient, sedeSelect);
+        } else {
+          sedeSelect.disabled = true;
+          sedeSelect.innerHTML = '<option value="">-- Selecciona primero un cliente --</option>';
+        }
+      });
+
+      // Client select change for reports
+      reportClientSelect.addEventListener('change', async (e) => {
+        const selectedClient = e.target.value;
+        if (selectedClient) {
+          await updateReportSedesByClient(selectedClient);
+        } else {
+          reportSedeSelect.disabled = true;
+          reportSedeSelect.innerHTML = '<option value="">-- Selecciona primero un cliente --</option>';
+        }
       });
 
       reportBtn.addEventListener('click', showReportModal);
@@ -1031,9 +1526,11 @@ document.addEventListener('DOMContentLoaded', () => {
       // Report modal events
       reportForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const client = reportClientSelect.value;
         const sede = reportSedeSelect.value;
         const month = reportMonth.value;
         
+        if (!client) return alert('Seleccione un cliente');
         if (!sede) return alert('Seleccione una sede');
         if (!month) return alert('Seleccione un mes');
         
@@ -1041,7 +1538,7 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
         
-        await generateReport(sede, month);
+        await generateReport(client, sede, month);
         
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="fas fa-download"></i> Descargar Reporte PDF';
