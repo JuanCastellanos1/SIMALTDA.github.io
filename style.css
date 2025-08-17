@@ -1292,6 +1292,7 @@ textarea {
   cursor: pointer;
   font-size: 14px;
   display: flex;
+  justify-content: center;
   align-items: center;
   text-align: center;
   gap: 6px;
@@ -1522,4 +1523,5 @@ textarea {
   border: none;
   cursor: pointer;
   color: #fff !important;
+
 }
