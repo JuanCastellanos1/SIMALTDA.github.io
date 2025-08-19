@@ -1478,10 +1478,11 @@ document.addEventListener('DOMContentLoaded', () => {
           ` : ''}
         `;
         
-        let actions = null;
         if (!task.completed) {
-          actions = document.createElement('div');
-          actions.className = 'task-actions';
+          el.appendChild(left);
+          // Acciones debajo del contenido, igual que completadas
+          const actions = document.createElement('div');
+          actions.className = 'task-actions pending-actions';
           const completeBtn = document.createElement('button');
           completeBtn.className = 'complete-btn';
           completeBtn.innerHTML = '<i class="fas fa-check-circle"></i> Completar';
@@ -1492,7 +1493,6 @@ document.addEventListener('DOMContentLoaded', () => {
           deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Eliminar';
           deleteBtn.addEventListener('click', () => deleteTask(task.id));
           actions.appendChild(deleteBtn);
-          el.appendChild(left);
           el.appendChild(actions);
         } else {
           el.appendChild(left);
