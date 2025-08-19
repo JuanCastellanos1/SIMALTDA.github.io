@@ -1,3 +1,9 @@
+.completed-delete-btn {
+  display: flex;
+  margin: 12px auto 0 auto;
+  width: fit-content;
+  justify-content: center;
+}
 @media (max-width: 600px) {
   .month-content,
   .client-content-nested,

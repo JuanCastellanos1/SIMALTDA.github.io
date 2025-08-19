@@ -1478,26 +1478,37 @@ document.addEventListener('DOMContentLoaded', () => {
           ` : ''}
         `;
         
-        const actions = document.createElement('div');
-        actions.className = 'task-actions';
-        
+        let actions = null;
         if (!task.completed) {
+          actions = document.createElement('div');
+          actions.className = 'task-actions';
           const completeBtn = document.createElement('button');
           completeBtn.className = 'complete-btn';
           completeBtn.innerHTML = '<i class="fas fa-check-circle"></i> Completar';
           completeBtn.addEventListener('click', () => showCompleteModal(task));
           actions.appendChild(completeBtn);
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'delete-btn';
+          deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Eliminar';
+          deleteBtn.addEventListener('click', () => deleteTask(task.id));
+          actions.appendChild(deleteBtn);
+          el.appendChild(left);
+          el.appendChild(actions);
+        } else {
+          el.appendChild(left);
+          // Solo botón eliminar, debajo de la imagen si existe
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'delete-btn completed-delete-btn';
+          deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Eliminar';
+          deleteBtn.addEventListener('click', () => deleteTask(task.id));
+          // Si hay imagen, insertarlo después de la imagen
+          const photoDiv = el.querySelector('.task-photo');
+          if (photoDiv) {
+            photoDiv.insertAdjacentElement('afterend', deleteBtn);
+          } else {
+            el.appendChild(deleteBtn);
+          }
         }
-        
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'delete-btn';
-        deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Eliminar';
-        deleteBtn.addEventListener('click', () => deleteTask(task.id));
-        actions.appendChild(deleteBtn);
-        
-        el.appendChild(left);
-        el.appendChild(actions);
-        
         return el;
       }
 
