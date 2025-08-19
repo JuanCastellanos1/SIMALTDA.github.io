@@ -1,3 +1,21 @@
+@media (max-width: 600px) {
+  .task .left,
+  .task:not(.completed) .left,
+  .task.completed .left {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  .task .task-description {
+    max-width: 100% !important;
+    word-break: break-word !important;
+    white-space: pre-wrap !important;
+  }
+}
 .task:not(.completed) .left {
   width: 100%;
   min-width: 100%;
