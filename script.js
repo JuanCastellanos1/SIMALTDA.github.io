@@ -258,7 +258,163 @@ async function deleteTaskFromFirestore(userId, taskId) {
   }
 }
 
-// Función para generar PDF con jsPDF - VERSIÓN CON CLIENTES
+// === FUNCIONES PARA MANEJO DE IMÁGENES ===
+function convertFileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function resizeImage(file, maxWidth = 800, maxHeight = 600, quality = 0.8) {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      // Calcular nuevas dimensiones manteniendo la proporción
+      let { width, height } = img;
+      
+      if (width > height) {
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Dibujar imagen redimensionada
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Convertir a base64
+      canvas.toBlob(resolve, 'image/jpeg', quality);
+    };
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Función para generar reporte Excel
+function generateExcelReport(tasks, client, sede, month, year) {
+  const monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+  
+  const monthIndex = Math.max(0, Math.min(11, month - 1));
+  const monthName = monthNames[monthIndex];
+  
+  // Crear workbook
+  const wb = XLSX.utils.book_new();
+  
+  // Preparar datos
+  const excelData = [];
+  
+  // Encabezados
+  excelData.push([
+    'SIMA - Servicios Integrales de Mantenimiento'
+  ]);
+  excelData.push([]);
+  excelData.push([
+    `Reporte de Mantenimiento - ${monthName} ${year}`
+  ]);
+  excelData.push([
+    `Cliente: ${client}`
+  ]);
+  excelData.push([
+    `Sede: ${sede === 'all' ? 'Todas las sedes' : sede}`
+  ]);
+  excelData.push([
+    `Total de tareas completadas: ${tasks.length}`
+  ]);
+  excelData.push([]);
+  
+  // Encabezados de tabla
+  excelData.push([
+    'Fecha Completada',
+    'Cliente', 
+    'Sede',
+    'Descripción',
+    'Materiales',
+    'Tiene Foto'
+  ]);
+  
+  // Datos de tareas
+  tasks.forEach(task => {
+    let completedDateFormatted = 'Fecha no disponible';
+    if (task.completedAt) {
+      let completedDate;
+      if (task.completedAt.toDate) {
+        completedDate = task.completedAt.toDate();
+      } else if (task.completedAt.seconds) {
+        completedDate = new Date(task.completedAt.seconds * 1000);
+      }
+      
+      if (completedDate) {
+        completedDateFormatted = completedDate.toLocaleDateString('es-ES', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+    }
+    
+    excelData.push([
+      completedDateFormatted,
+      task.client,
+      task.sede,
+      task.description,
+      task.materials || 'No especificado',
+      task.photo ? 'Sí' : 'No'
+    ]);
+  });
+  
+  excelData.push([]);
+  excelData.push([
+    `Generado: ${new Date().toLocaleString('es-ES')}`
+  ]);
+  
+  // Crear worksheet
+  const ws = XLSX.utils.aoa_to_sheet(excelData);
+  
+  // Configurar anchos de columna
+  ws['!cols'] = [
+    { wch: 20 }, // Fecha Completada
+    { wch: 25 }, // Cliente
+    { wch: 25 }, // Sede
+    { wch: 50 }, // Descripción
+    { wch: 40 }, // Materiales
+    { wch: 12 }  // Tiene Foto
+  ];
+  
+  // Añadir worksheet al workbook
+  XLSX.utils.book_append_sheet(wb, ws, "Reporte Mantenimiento");
+  
+  // Generar archivo y descargar
+  const sedeFileName = sede === 'all' ? 'TodasSedes' : sede.replace(/\s+/g, '_');
+  const clientFileName = client.replace(/\s+/g, '_');
+  const fileName = `SIMA_Reporte_${clientFileName}_${sedeFileName}_${monthName}_${year}.xlsx`;
+  
+  XLSX.writeFile(wb, fileName);
+}
+
+// Función para generar PDF con jsPDF - VERSIÓN CON CLIENTES Y FOTOS
 function generatePDF(tasks, client, sede, month, year) {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
@@ -318,13 +474,14 @@ function generatePDF(tasks, client, sede, month, year) {
       const materialsLines = task.materials ? pdf.splitTextToSize(task.materials, 165) : [];
       const sedeLines = pdf.splitTextToSize(task.sede, 165);
       
-      // Calcular altura mínima necesaria (más compacto)
-      const baseHeight = 18; // Altura base para número, fecha, cliente, etc. (antes 32)
-      const descriptionHeight = Math.max(1, descriptionLines.length) * 3.2; // antes 4
-      const materialsHeight = materialsLines.length > 0 ? (materialsLines.length * 3.2) + 5 : 5; // antes 8
-      const sedeHeight = Math.max(1, sedeLines.length) * 3.2; // antes 4
-
-      const totalHeight = baseHeight + descriptionHeight + materialsHeight + sedeHeight;
+      // Calcular altura mínima necesaria (incluyendo espacio para foto)
+      const baseHeight = 18;
+      const descriptionHeight = Math.max(1, descriptionLines.length) * 3.2;
+      const materialsHeight = materialsLines.length > 0 ? (materialsLines.length * 3.2) + 5 : 5;
+      const sedeHeight = Math.max(1, sedeLines.length) * 3.2;
+      const photoHeight = task.photo ? 45 : 0; // Espacio reservado para foto
+      
+      const totalHeight = baseHeight + descriptionHeight + materialsHeight + sedeHeight + photoHeight;
 
       // Verificar si necesitamos una nueva página
       if (y + totalHeight > 270) {
@@ -335,15 +492,13 @@ function generatePDF(tasks, client, sede, month, year) {
       // Rectángulo de fondo alternando colores
       const bgColor = index % 2 === 0 ? [248, 249, 250] : [255, 255, 255];
       pdf.setFillColor(...bgColor);
-      pdf.rect(18, y - 2, 174, totalHeight, 'F'); // menos margen superior
+      pdf.rect(18, y - 2, 174, totalHeight, 'F');
 
       // Borde izquierdo azul
       pdf.setFillColor(44, 90, 160);
       pdf.rect(18, y - 2, 3, totalHeight, 'F');
 
       let currentY = y;
-
-      // LAYOUT VERTICAL OPTIMIZADO CON CLIENTE
 
       // Fecha de completado
       let completedDateFormatted = 'Fecha no disponible';
@@ -366,7 +521,7 @@ function generatePDF(tasks, client, sede, month, year) {
         }
       }
       
-      pdf.setFontSize(8); // más pequeño
+      pdf.setFontSize(8);
       pdf.setTextColor(108, 117, 125);
       pdf.setFont('helvetica', 'normal');
       pdf.text(`Completada: ${completedDateFormatted}`, 190, currentY, { align: 'right' });
@@ -425,13 +580,35 @@ function generatePDF(tasks, client, sede, month, year) {
         materialsLines.forEach((line, i) => {
           pdf.text(line, 25, currentY + 4 + (i * 3.2));
         });
+        currentY += 4 + (materialsLines.length * 3.2) + 2.5;
       } else {
         pdf.setTextColor(108, 117, 125);
         pdf.setFont('helvetica', 'italic');
         pdf.text('No especificado', 25, currentY + 4);
+        currentY += 4 + 2.5;
       }
 
-      y += totalHeight + 4; // Menos espacio entre tareas
+      // Foto (si existe)
+      if (task.photo) {
+        pdf.setFontSize(8);
+        pdf.setTextColor(44, 90, 160);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('EVIDENCIA FOTOGRÁFICA:', 25, currentY);
+        
+        try {
+          // Añadir imagen con tamaño limitado
+          pdf.addImage(task.photo, 'JPEG', 25, currentY + 3, 40, 30);
+          currentY += 35;
+        } catch (error) {
+          console.error('Error añadiendo imagen al PDF:', error);
+          pdf.setTextColor(108, 117, 125);
+          pdf.setFont('helvetica', 'italic');
+          pdf.text('Error al cargar imagen', 25, currentY + 4);
+          currentY += 8;
+        }
+      }
+
+      y += totalHeight + 4;
       
       // Línea separadora entre tareas
       if (index < tasks.length - 1) {
@@ -569,12 +746,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const reportClientSelect = document.getElementById('reportClientSelect');
       const reportSedeSelect = document.getElementById('reportSedeSelect');
       const reportMonth = document.getElementById('reportMonth');
+      
+      // Photo elements
+      const photoInput = document.getElementById('photoInput');
+      const uploadPhotoBtn = document.getElementById('uploadPhotoBtn');
+      const photoPreview = document.getElementById('photoPreview');
+      const removePhotoBtn = document.getElementById('removePhotoBtn');
 
       let clients = [];
       let sedes = [];
       let tasks = [];
       let currentTaskToComplete = null;
       let showCompleted = false;
+      let selectedPhoto = null;
 
       // Establecer mes actual en el selector de reporte
       const now = new Date();
@@ -622,6 +806,53 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedReportClient) {
           await updateReportSedesByClient(selectedReportClient);
         }
+      }
+
+      // --- Funciones para manejo de fotos ---
+      function handlePhotoUpload() {
+        const file = photoInput.files[0];
+        if (!file) return;
+
+        // Validar tipo de archivo
+        if (!file.type.startsWith('image/')) {
+          alert('Por favor selecciona una imagen válida');
+          return;
+        }
+
+        // Validar tamaño (máximo 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          alert('La imagen es demasiado grande. Máximo 5MB.');
+          return;
+        }
+
+        // Mostrar preview y procesar imagen
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            // Redimensionar imagen
+            const resizedBlob = await resizeImage(file, 800, 600, 0.8);
+            const resizedBase64 = await convertFileToBase64(resizedBlob);
+            
+            selectedPhoto = resizedBase64;
+            
+            // Mostrar preview
+            photoPreview.innerHTML = `<img src="${resizedBase64}" alt="Preview" style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 1px solid #ddd;">`;
+            removePhotoBtn.style.display = 'inline-block';
+            
+          } catch (error) {
+            console.error('Error procesando imagen:', error);
+            alert('Error al procesar la imagen');
+          }
+        };
+        
+        reader.readAsDataURL(file);
+      }
+
+      function removePhoto() {
+        selectedPhoto = null;
+        photoInput.value = '';
+        photoPreview.innerHTML = '';
+        removePhotoBtn.style.display = 'none';
       }
 
       // --- Clientes UI ---
@@ -1236,6 +1467,15 @@ document.addEventListener('DOMContentLoaded', () => {
               Materiales: ${task.materials}
             </div>
           ` : ''}
+          ${task.photo ? `
+            <div class="meta">
+              <i class="fas fa-camera"></i>
+              <span class="photo-indicator">Con evidencia fotográfica</span>
+            </div>
+            <div class="task-photo">
+              <img src="${task.photo}" alt="Evidencia fotográfica" onclick="showPhotoModal('${task.photo}')">
+            </div>
+          ` : ''}
         `;
         
         const actions = document.createElement('div');
@@ -1261,6 +1501,43 @@ document.addEventListener('DOMContentLoaded', () => {
         return el;
       }
 
+      // --- Función para mostrar foto en modal ---
+      function showPhotoModal(photoSrc) {
+        // Crear modal para mostrar foto grande
+        const modal = document.createElement('div');
+        modal.className = 'photo-modal';
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.8);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 2000;
+          cursor: pointer;
+        `;
+        
+        const img = document.createElement('img');
+        img.src = photoSrc;
+        img.style.cssText = `
+          max-width: 90%;
+          max-height: 90%;
+          border-radius: 8px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        `;
+        
+        modal.appendChild(img);
+        document.body.appendChild(modal);
+        
+        // Cerrar al hacer clic
+        modal.addEventListener('click', () => {
+          document.body.removeChild(modal);
+        });
+      }
+
       // --- Toggle between pending and completed tasks ---
       function toggleTaskView() {
         showCompleted = !showCompleted;
@@ -1277,6 +1554,10 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTaskToComplete = task;
         modalTaskDesc.textContent = task.description;
         materialsInput.value = '';
+        selectedPhoto = null;
+        photoPreview.innerHTML = '';
+        removePhotoBtn.style.display = 'none';
+        photoInput.value = '';
         completeModal.style.display = 'block';
         materialsInput.focus();
       }
@@ -1284,6 +1565,10 @@ document.addEventListener('DOMContentLoaded', () => {
       function hideCompleteModal() {
         completeModal.style.display = 'none';
         currentTaskToComplete = null;
+        selectedPhoto = null;
+        photoPreview.innerHTML = '';
+        removePhotoBtn.style.display = 'none';
+        photoInput.value = '';
       }
 
       function showReportModal() {
@@ -1302,7 +1587,8 @@ document.addEventListener('DOMContentLoaded', () => {
           sede,
           completed: false,
           completedAt: null,
-          materials: null
+          materials: null,
+          photo: null
         };
         
         const success = await addTaskToFirestore(user.uid, newTask);
@@ -1313,11 +1599,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      async function completeTask(taskId, materials) {
+      async function completeTask(taskId, materials, photo = null) {
         const updates = {
           completed: true,
           materials: materials.trim()
         };
+
+        if (photo) {
+          updates.photo = photo;
+        }
         
         const success = await updateTaskInFirestore(user.uid, taskId, updates);
         if (success) {
@@ -1343,18 +1633,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // --- Generar reporte ---
-      async function generateReport(client, sede, month) {
+      // --- Generar reportes ---
+      async function generateReport(client, sede, month, format) {
         const [year, monthNum] = month.split('-').map(Number);
         
         console.log('Generando reporte:');
         console.log('Cliente:', client, 'Sede:', sede);
         console.log('Mes seleccionado:', month);
         console.log('Año:', year, 'Mes número:', monthNum);
+        console.log('Formato:', format);
         
         try {
           const reportTasks = await getTasksByClientSedeAndMonth(user.uid, client, sede, year, monthNum);
-          generatePDF(reportTasks, client, sede, monthNum, year);
+          
+          if (format === 'pdf') {
+            generatePDF(reportTasks, client, sede, monthNum, year);
+          } else if (format === 'excel') {
+            generateExcelReport(reportTasks, client, sede, monthNum, year);
+          }
+          
           hideReportModal();
         } catch (error) {
           console.error('Error generando reporte:', error);
@@ -1501,6 +1798,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
+      // Photo upload events
+      uploadPhotoBtn.addEventListener('click', () => {
+        photoInput.click();
+      });
+
+      photoInput.addEventListener('change', handlePhotoUpload);
+      removePhotoBtn.addEventListener('click', removePhoto);
+
       reportBtn.addEventListener('click', showReportModal);
       toggleCompletedBtn.addEventListener('click', toggleTaskView);
 
@@ -1515,7 +1820,7 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completando...';
         
-        await completeTask(currentTaskToComplete.id, materials);
+        await completeTask(currentTaskToComplete.id, materials, selectedPhoto);
         
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="fas fa-check"></i> Completar Tarea';
@@ -1523,7 +1828,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       document.getElementById('cancelComplete').addEventListener('click', hideCompleteModal);
 
-      // Report modal events
+      // Report modal events - ACTUALIZADO PARA MÚLTIPLES FORMATOS
       reportForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const client = reportClientSelect.value;
@@ -1534,14 +1839,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!sede) return alert('Seleccione una sede');
         if (!month) return alert('Seleccione un mes');
         
-        const submitBtn = reportForm.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
+        // Determinar qué botón fue presionado
+        const clickedButton = e.submitter;
+        const format = clickedButton.getAttribute('data-format');
         
-        await generateReport(client, sede, month);
+        const originalHTML = clickedButton.innerHTML;
+        clickedButton.disabled = true;
+        clickedButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
         
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-download"></i> Descargar Reporte PDF';
+        await generateReport(client, sede, month, format);
+        
+        clickedButton.disabled = false;
+        clickedButton.innerHTML = originalHTML;
       });
 
       document.getElementById('cancelReport').addEventListener('click', hideReportModal);
@@ -1582,4 +1891,39 @@ document.addEventListener('DOMContentLoaded', () => {
       unsubscribe();
     });
   }
+
+  // Función global para mostrar fotos (necesaria para el onclick)
+  window.showPhotoModal = function(photoSrc) {
+    const modal = document.createElement('div');
+    modal.className = 'photo-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      cursor: pointer;
+    `;
+    
+    const img = document.createElement('img');
+    img.src = photoSrc;
+    img.style.cssText = `
+      max-width: 90%;
+      max-height: 90%;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    `;
+    
+    modal.appendChild(img);
+    document.body.appendChild(modal);
+    
+    modal.addEventListener('click', () => {
+      document.body.removeChild(modal);
+    });
+  };
 });
