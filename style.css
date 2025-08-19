@@ -1,3 +1,26 @@
+@media (max-width: 600px) {
+  .month-content,
+  .client-content-nested,
+  .sede-content-nested {
+    padding: 6px 2px 6px 2px !important;
+    font-size: 12px;
+  }
+  .month-content.expanded,
+  .client-content-nested.expanded,
+  .sede-content-nested.expanded {
+    padding: 8px 2px 8px 2px !important;
+  }
+  .task {
+    font-size: 12px;
+    padding: 7px;
+  }
+  .task .task-description {
+    font-size: 12px;
+  }
+  .task .meta {
+    font-size: 10px;
+  }
+}
 /* === Estilos globales === */
 * { 
   box-sizing: border-box; 
