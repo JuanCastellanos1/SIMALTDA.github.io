@@ -380,7 +380,7 @@ function generateExcelReport(tasks, client, sede, month, year) {
       task.client,
       task.sede,
       task.description,
-      task.materials || 'No especificado',
+      task.materials ? task.materials : 'N/A',
       task.photo ? 'Sí' : 'No'
     ]);
   });
@@ -584,7 +584,7 @@ function generatePDF(tasks, client, sede, month, year) {
       } else {
         pdf.setTextColor(108, 117, 125);
         pdf.setFont('helvetica', 'italic');
-        pdf.text('No especificado', 25, currentY + 4);
+        pdf.text('N/A', 25, currentY + 4);
         currentY += 4 + 2.5;
       }
 
@@ -1461,12 +1461,7 @@ document.addEventListener('DOMContentLoaded', () => {
               Completada: ${completedAtStr}
             </div>
           ` : ''}
-          ${task.materials ? `
-            <div class="meta">
-              <i class="fas fa-tools"></i>
-              Materiales: ${task.materials}
-            </div>
-          ` : ''}
+          ${task.completed ? `<div class="meta"><i class="fas fa-tools"></i>Materiales: ${task.materials ? task.materials : 'N/A'}</div>` : ''}
           ${task.photo ? `
             <div class="meta">
               <i class="fas fa-camera"></i>
@@ -1613,7 +1608,7 @@ document.addEventListener('DOMContentLoaded', () => {
       async function completeTask(taskId, materials, photo = null) {
         const updates = {
           completed: true,
-          materials: materials.trim()
+          materials: materials.trim() ? materials.trim() : null
         };
 
         if (photo) {
@@ -1774,13 +1769,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           submitBtn.disabled = true;
           submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Añadiendo...';
-          
           await addTask(desc, client, sede);
           taskInput.value = '';
-          taskClientSelect.value = '';
-          sedeSelect.value = '';
-          sedeSelect.disabled = true;
-          sedeSelect.innerHTML = '<option value="">-- Selecciona primero un cliente --</option>';
         } finally {
           submitBtn.disabled = false;
           submitBtn.innerHTML = originalHTML;
@@ -1823,18 +1813,14 @@ document.addEventListener('DOMContentLoaded', () => {
       // Complete modal events
       completeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const materials = materialsInput.value.trim();
-        if (!materials) return alert('Ingrese los materiales utilizados');
-        if (!currentTaskToComplete) return;
-        
-        const submitBtn = completeForm.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completando...';
-        
-        await completeTask(currentTaskToComplete.id, materials, selectedPhoto);
-        
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-check"></i> Completar Tarea';
+  const materials = materialsInput.value.trim();
+  if (!currentTaskToComplete) return;
+  const submitBtn = completeForm.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completando...';
+  await completeTask(currentTaskToComplete.id, materials, selectedPhoto);
+  submitBtn.disabled = false;
+  submitBtn.innerHTML = '<i class="fas fa-check"></i> Completar Tarea';
       });
 
       document.getElementById('cancelComplete').addEventListener('click', hideCompleteModal);
