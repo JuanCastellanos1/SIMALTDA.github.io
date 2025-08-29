@@ -212,7 +212,7 @@ async function getTasksByClientSedeAndMonth(userId, client, sede, year, month) {
     return filteredTasks.sort((a, b) => {
       const dateA = a.completedAt?.toDate ? a.completedAt.toDate() : new Date(a.completedAt?.seconds * 1000 || 0);
       const dateB = b.completedAt?.toDate ? b.completedAt.toDate() : new Date(b.completedAt?.seconds * 1000 || 0);
-      return dateB - dateA;
+      return dateA - dateB;
     });
   } catch (error) {
     console.error('Error obteniendo tareas para reporte:', error);
