@@ -90,6 +90,14 @@
           </select>
         </div>
         <div class="input-group">
+          <i class="fas fa-wrench"></i>
+          <select id="taskTypeSelect" required>
+            <option value="">-- Tipo de mantenimiento --</option>
+            <option value="preventiva">Preventiva</option>
+            <option value="correctiva">Correctiva</option>
+          </select>
+        </div>
+        <div class="input-group">
           <i class="fas fa-clipboard-list"></i>
           <textarea id="taskInput" placeholder="Descripción detallada de la tarea de mantenimiento" required></textarea>
         </div>
@@ -174,6 +182,14 @@
             <i class="fas fa-map-marker-alt"></i>
             <select id="reportSedeSelect" required disabled>
               <option value="">-- Selecciona primero un cliente --</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <i class="fas fa-file-alt"></i>
+            <select id="reportType" required>
+              <option value="">-- Tipo de reporte --</option>
+              <option value="tasks">Reporte de Tareas</option>
+              <option value="materials">Reporte de Materiales</option>
             </select>
           </div>
           <div class="input-group">

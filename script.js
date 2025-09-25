@@ -169,6 +169,7 @@ async function getUserTasks(userId) {
   }
 }
 
+// Función corregida para getTasksByClientSedeAndMonth
 async function getTasksByClientSedeAndMonth(userId, client, sede, year, month) {
   try {
     const startDate = new Date(year, month - 1, 1);
@@ -179,10 +180,12 @@ async function getTasksByClientSedeAndMonth(userId, client, sede, year, month) {
     console.log('Buscando tareas entre:', startDate, 'y', endDate);
     console.log('Cliente:', client, 'Sede:', sede);
     
+    // Primero obtener TODAS las tareas completadas del cliente
     let tasksRef = db.collection('users').doc(userId).collection('tasks')
       .where('completed', '==', true)
       .where('client', '==', client);
     
+    // Si no es "all", filtrar por sede específica
     if (sede !== 'all') {
       tasksRef = tasksRef.where('sede', '==', sede);
     }
@@ -190,36 +193,128 @@ async function getTasksByClientSedeAndMonth(userId, client, sede, year, month) {
     const snapshot = await tasksRef.get();
     const allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     
-    console.log('Tareas completadas encontradas:', allTasks.length);
     
-    // Filtrar por fecha en el cliente para mayor flexibilidad
-    const filteredTasks = allTasks.filter(task => {
-      if (!task.completedAt) return false;
-      
-      let completedDate;
-      if (task.completedAt.toDate) {
-        completedDate = task.completedAt.toDate();
-      } else if (task.completedAt.seconds) {
-        completedDate = new Date(task.completedAt.seconds * 1000);
+    // Debug: mostrar las primeras 3 tareas para ver su estructura
+    if (allTasks.length > 0) {
+      console.log('Ejemplo de tarea:', allTasks[0]);
+      if (allTasks[0].completedAt) {
+        console.log('Tipo de completedAt:', typeof allTasks[0].completedAt);
+        console.log('CompletedAt:', allTasks[0].completedAt);
       } else {
+        console.log('⚠️ Tarea sin completedAt:', allTasks[0].description);
+      }
+    }
+    
+    // Filtrar por fecha con mejor manejo de errores
+    const filteredTasks = allTasks.filter(task => {
+      // Si no tiene completedAt, excluir la tarea
+      if (!task.completedAt) {
+        console.log('⚠️ Tarea sin fecha de completado:', task.description);
         return false;
       }
       
-      return completedDate >= startDate && completedDate <= endDate;
+      let completedDate;
+      
+      try {
+        // Manejar diferentes tipos de timestamp
+        if (typeof task.completedAt === 'object' && task.completedAt !== null) {
+          // Firestore Timestamp
+          if (task.completedAt.toDate && typeof task.completedAt.toDate === 'function') {
+            completedDate = task.completedAt.toDate();
+          }
+          // Objeto con seconds (timestamp serializado)
+          else if (task.completedAt.seconds) {
+            completedDate = new Date(task.completedAt.seconds * 1000);
+          }
+          // Si ya es un objeto Date
+          else if (task.completedAt instanceof Date) {
+            completedDate = task.completedAt;
+          }
+        }
+        // Si es string, intentar parsearlo
+        else if (typeof task.completedAt === 'string') {
+          completedDate = new Date(task.completedAt);
+        }
+        // Si es número (timestamp en milisegundos)
+        else if (typeof task.completedAt === 'number') {
+          completedDate = new Date(task.completedAt);
+        }
+        
+        // Validar que la fecha es válida
+        if (!completedDate || isNaN(completedDate.getTime())) {
+          console.log('⚠️ Fecha inválida en tarea:', task.description, 'completedAt:', task.completedAt);
+          return false;
+        }
+        
+        // Verificar si está en el rango
+        const isInRange = completedDate >= startDate && completedDate <= endDate;
+        
+        if (isInRange) {
+          console.log('✅ Tarea incluida:', task.description, 'Completada:', completedDate.toLocaleDateString());
+        }
+        
+        return isInRange;
+        
+      } catch (error) {
+        console.error('Error procesando fecha de tarea:', task.description, error);
+        return false;
+      }
     });
     
-    console.log('Tareas filtradas por fecha:', filteredTasks.length);
+    
+    // Ordenar por fecha de completado
     return filteredTasks.sort((a, b) => {
-      const dateA = a.completedAt?.toDate ? a.completedAt.toDate() : new Date(a.completedAt?.seconds * 1000 || 0);
-      const dateB = b.completedAt?.toDate ? b.completedAt.toDate() : new Date(b.completedAt?.seconds * 1000 || 0);
-      return dateA - dateB;
+      const getDate = (task) => {
+        if (!task.completedAt) return new Date(0);
+        
+        if (task.completedAt.toDate) {
+          return task.completedAt.toDate();
+        } else if (task.completedAt.seconds) {
+          return new Date(task.completedAt.seconds * 1000);
+        } else if (task.completedAt instanceof Date) {
+          return task.completedAt;
+        } else if (typeof task.completedAt === 'string') {
+          return new Date(task.completedAt);
+        } else if (typeof task.completedAt === 'number') {
+          return new Date(task.completedAt);
+        }
+        return new Date(0);
+      };
+      
+      return getDate(a) - getDate(b);
     });
+    
   } catch (error) {
     console.error('Error obteniendo tareas para reporte:', error);
     return [];
   }
 }
 
+// También agregar esta función de debugging para verificar las tareas
+async function debugTaskDates(userId) {
+  try {
+    const tasksRef = db.collection('users').doc(userId).collection('tasks');
+    const snapshot = await tasksRef.where('completed', '==', true).limit(10).get();
+    const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    console.log('=== DEBUG TAREAS COMPLETADAS ===');
+    tasks.forEach((task, index) => {
+      console.log(`Tarea ${index + 1}:`, {
+        description: task.description,
+        completed: task.completed,
+        completedAt: task.completedAt,
+        completedAtType: typeof task.completedAt,
+        client: task.client,
+        sede: task.sede
+      });
+    });
+    
+    return tasks;
+  } catch (error) {
+    console.error('Error en debug:', error);
+    return [];
+  }
+}
 async function addTaskToFirestore(userId, task) {
   try {
     await db.collection('users').doc(userId).collection('tasks').add({
@@ -255,6 +350,41 @@ async function deleteTaskFromFirestore(userId, taskId) {
   } catch (error) {
     console.error('Error eliminando tarea:', error);
     return false;
+  }
+}
+// Función helper para formatear fechas de manera segura
+function safeFormatDate(dateField) {
+  if (!dateField) return 'Fecha no disponible';
+  
+  try {
+    let date;
+    
+    if (typeof dateField === 'object' && dateField !== null) {
+      if (dateField.toDate && typeof dateField.toDate === 'function') {
+        date = dateField.toDate();
+      } else if (dateField.seconds) {
+        date = new Date(dateField.seconds * 1000);
+      } else if (dateField instanceof Date) {
+        date = dateField;
+      }
+    } else if (typeof dateField === 'string') {
+      date = new Date(dateField);
+    } else if (typeof dateField === 'number') {
+      date = new Date(dateField);
+    }
+    
+    if (!date || isNaN(date.getTime())) {
+      return 'Fecha no disponible';
+    }
+    
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  } catch (error) {
+    console.error('Error formateando fecha:', error);
+    return 'Fecha no disponible';
   }
 }
 
@@ -308,8 +438,10 @@ function resizeImage(file, maxWidth = 800, maxHeight = 600, quality = 0.8) {
   });
 }
 
-// Función para generar reporte Excel
+// Función corregida para generar Excel
 function generateExcelReport(tasks, client, sede, month, year) {
+  console.log('Generando Excel con', tasks.length, 'tareas');
+  
   const monthNames = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
@@ -325,70 +457,60 @@ function generateExcelReport(tasks, client, sede, month, year) {
   const excelData = [];
   
   // Encabezados
-  excelData.push([
-    'SIMA - Servicios Integrales de Mantenimiento'
-  ]);
+  excelData.push(['SIMA - Servicios Integrales de Mantenimiento']);
   excelData.push([]);
-  excelData.push([
-    `Reporte de Mantenimiento - ${monthName} ${year}`
-  ]);
-  excelData.push([
-    `Cliente: ${client}`
-  ]);
-  excelData.push([
-    `Sede: ${sede === 'all' ? 'Todas las sedes' : sede}`
-  ]);
-  excelData.push([
-    `Total de tareas completadas: ${tasks.length}`
-  ]);
+  excelData.push([`Reporte de Mantenimiento - ${monthName} ${year}`]);
+  excelData.push([`Cliente: ${client}`]);
+  excelData.push([`Sede: ${sede === 'all' ? 'Todas las sedes' : sede}`]);
+  excelData.push([`Total de tareas completadas: ${tasks.length}`]);
   excelData.push([]);
   
   // Encabezados de tabla
   excelData.push([
     'Fecha Completada',
-    'Cliente', 
-    'Sede',
+    'Cliente',
+    'Sede', 
+    'Tipo',
     'Descripción',
     'Materiales',
     'Tiene Foto'
   ]);
   
   // Datos de tareas
-  tasks.forEach(task => {
-    let completedDateFormatted = 'Fecha no disponible';
-    if (task.completedAt) {
-      let completedDate;
-      if (task.completedAt.toDate) {
-        completedDate = task.completedAt.toDate();
-      } else if (task.completedAt.seconds) {
-        completedDate = new Date(task.completedAt.seconds * 1000);
+  if (tasks.length === 0) {
+    excelData.push(['No hay tareas completadas en el período seleccionado']);
+  } else {
+    tasks.forEach(task => {
+      try {
+        const completedDateFormatted = safeFormatDate(task.completedAt);
+        
+        excelData.push([
+          completedDateFormatted,
+          task.client || 'N/A',
+          task.sede || 'N/A',
+          task.type ? task.type.charAt(0).toUpperCase() + task.type.slice(1) : 'N/A',
+          task.description || 'Sin descripción',
+          task.materials || 'N/A',
+          task.photo ? 'Sí' : 'No'
+        ]);
+      } catch (error) {
+        console.error('Error procesando tarea para Excel:', error, task);
+        // Agregar fila con error pero no fallar completamente
+        excelData.push([
+          'Error en fecha',
+          task.client || 'N/A',
+          task.sede || 'N/A',
+          'N/A',
+          task.description || 'Error en tarea',
+          'N/A',
+          'No'
+        ]);
       }
-      
-      if (completedDate) {
-        completedDateFormatted = completedDate.toLocaleDateString('es-ES', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-      }
-    }
-    
-    excelData.push([
-      completedDateFormatted,
-      task.client,
-      task.sede,
-      task.description,
-      task.materials ? task.materials : 'N/A',
-      task.photo ? 'Sí' : 'No'
-    ]);
-  });
+    });
+  }
   
   excelData.push([]);
-  excelData.push([
-    `Generado: ${new Date().toLocaleString('es-ES')}`
-  ]);
+  excelData.push([`Generado: ${new Date().toLocaleString('es-ES')}`]);
   
   // Crear worksheet
   const ws = XLSX.utils.aoa_to_sheet(excelData);
@@ -398,6 +520,7 @@ function generateExcelReport(tasks, client, sede, month, year) {
     { wch: 20 }, // Fecha Completada
     { wch: 25 }, // Cliente
     { wch: 25 }, // Sede
+    { wch: 15 }, // Tipo
     { wch: 50 }, // Descripción
     { wch: 40 }, // Materiales
     { wch: 12 }  // Tiene Foto
@@ -412,10 +535,14 @@ function generateExcelReport(tasks, client, sede, month, year) {
   const fileName = `SIMA_Reporte_${clientFileName}_${sedeFileName}_${monthName}_${year}.xlsx`;
   
   XLSX.writeFile(wb, fileName);
+  
+  console.log('Excel generado:', fileName);
 }
 
-// Función para generar PDF con jsPDF - VERSIÓN CON CLIENTES Y FOTOS
+// Función optimizada para generar PDF sin espacios en blanco excesivos
 function generatePDF(tasks, client, sede, month, year) {
+  console.log('Generando PDF con', tasks.length, 'tareas');
+  
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
   
@@ -423,16 +550,16 @@ function generatePDF(tasks, client, sede, month, year) {
   pdf.setFont('helvetica');
   
   // Header con logo SIMA
-  pdf.setFontSize(20);
+  pdf.setFontSize(18);
   pdf.setTextColor(44, 90, 160);
-  pdf.text('SIMA', 20, 25);
+  pdf.text('SIMA', 20, 20);
   
-  pdf.setFontSize(12);
+  pdf.setFontSize(10);
   pdf.setTextColor(108, 117, 125);
-  pdf.text('Servicios Integrales de Mantenimiento', 20, 32);
+  pdf.text('Servicios Integrales de Mantenimiento', 20, 26);
   
   // Título del reporte
-  pdf.setFontSize(16);
+  pdf.setFontSize(14);
   pdf.setTextColor(44, 62, 80);
   const monthNames = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -443,14 +570,290 @@ function generatePDF(tasks, client, sede, month, year) {
   const monthName = monthNames[monthIndex];
   
   const reportTitle = `Reporte de Mantenimiento - ${monthName} ${year}`;
-  pdf.text(reportTitle, 20, 45);
+  pdf.text(reportTitle, 20, 35);
   
-  pdf.setFontSize(12);
+  pdf.setFontSize(10);
   pdf.setTextColor(108, 117, 125);
   const clientText = `Cliente: ${client}`;
   const sedeText = sede === 'all' ? 'Todas las sedes' : `Sede: ${sede}`;
-  pdf.text(clientText, 20, 52);
-  pdf.text(sedeText, 20, 59);
+  pdf.text(clientText, 20, 41);
+  pdf.text(sedeText, 20, 46);
+  
+  // Línea separadora
+  pdf.setDrawColor(233, 236, 239);
+  pdf.line(20, 50, 190, 50);
+  
+  let y = 58;
+  
+  if (tasks.length === 0) {
+    pdf.setFontSize(10);
+    pdf.setTextColor(108, 117, 125);
+    pdf.text('No hay tareas completadas en el período seleccionado.', 20, y);
+  } else {
+    pdf.setFontSize(10);
+    pdf.setTextColor(44, 62, 80);
+    pdf.text(`Total de tareas completadas: ${tasks.length}`, 20, y);
+    y += 12;
+    
+    tasks.forEach((task, index) => {
+      try {
+        // Preparar contenido
+        const description = task.description || 'Sin descripción';
+        const materials = task.materials || '';
+        const descriptionLines = pdf.splitTextToSize(description, 165);
+        const materialsLines = materials ? pdf.splitTextToSize(materials, 165) : [];
+
+        // Calcular altura EXACTA necesaria
+        let requiredHeight = 2; // Padding inicial reducido
+        requiredHeight += 4; // Espacio para contenido principal
+        if (sede !== 'all') {
+          requiredHeight += 4; // Cliente (solo si no es "todas las sedes")
+        }
+        requiredHeight += 4; // Sede  
+        requiredHeight += 4; // Tipo
+        requiredHeight += 5; // Espacio antes descripción (aumentado)
+        requiredHeight += 2; // Espacio después título descripción
+        requiredHeight += (descriptionLines.length * 4); // Descripción
+        requiredHeight += 6; // Espacio antes materiales (aumentado)
+        requiredHeight += 2; // Espacio después título materiales
+        
+        if (materialsLines.length > 0) {
+          requiredHeight += (materialsLines.length * 4); // Materiales
+        } else {
+          requiredHeight += 4; // "N/A"
+        }
+        
+        if (task.photo) {
+          requiredHeight += 4; // Título evidencia
+          requiredHeight += 22; // Imagen
+          requiredHeight += 2; // Espacio después imagen
+        }
+        
+        requiredHeight += 4; // Padding final
+
+        // Verificar si necesitamos una nueva página
+        if (y + requiredHeight > 270) {
+          pdf.addPage();
+          y = 15;
+        }
+
+        const rectStartY = y;
+
+        // Dibujar fondo EXACTO
+        const bgColor = index % 2 === 0 ? [248, 249, 250] : [255, 255, 255];
+        pdf.setFillColor(...bgColor);
+        pdf.rect(18, rectStartY, 174, requiredHeight, 'F');
+
+        // Borde izquierdo
+        pdf.setFillColor(44, 90, 160);
+        pdf.rect(18, rectStartY, 2, requiredHeight, 'F');
+
+        // Dibujar contenido con posiciones EXACTAS
+        let currentY = y + 2; // Reducir padding inicial
+
+        // Fecha de ingreso (creación) - en esquina superior derecha
+        const createdDateFormatted = safeFormatDate(task.createdAt);
+        pdf.setFontSize(7);
+        pdf.setTextColor(108, 117, 125);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Ingresada: ${createdDateFormatted}`, 188, currentY + 2, { align: 'right' });
+
+        // Fecha de completado - en esquina superior derecha
+        const completedDateFormatted = safeFormatDate(task.completedAt);
+        pdf.setFontSize(7);
+        pdf.setTextColor(108, 117, 125);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Completada: ${completedDateFormatted}`, 188, currentY + 5, { align: 'right' });
+
+        // El contenido principal comienza inmediatamente después del padding inicial
+        currentY = y + 4; // Posición fija para el contenido principal
+
+        // Cliente (solo mostrar si no es reporte de "todas las sedes")
+        if (sede !== 'all') {
+          pdf.setFontSize(8);
+          pdf.setTextColor(44, 90, 160);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('CLIENTE:', 22, currentY);
+          pdf.setTextColor(44, 62, 80);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(task.client || 'N/A', 50, currentY);
+          currentY += 4;
+        }
+
+        // Sede (sin espacio adicional cuando no hay cliente)
+        pdf.setFontSize(8);
+        pdf.setTextColor(44, 90, 160);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('SEDE:', 22, currentY);
+        pdf.setTextColor(44, 62, 80);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(task.sede || 'N/A', 40, currentY);
+        currentY += 4;
+
+        // Tipo
+        pdf.setFontSize(8);
+        pdf.setTextColor(44, 90, 160);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('TIPO:', 22, currentY);
+        pdf.setTextColor(44, 62, 80);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(task.type ? task.type.charAt(0).toUpperCase() + task.type.slice(1) : 'N/A', 40, currentY);
+        currentY += 4;
+
+        // Descripción
+        currentY += 5; // Más espacio antes
+        pdf.setFontSize(8);
+        pdf.setTextColor(44, 90, 160);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('DESCRIPCIÓN:', 22, currentY);
+        currentY += 2; // Más espacio después del título
+        pdf.setTextColor(44, 62, 80);
+        pdf.setFont('helvetica', 'normal');
+        descriptionLines.forEach((line) => {
+          currentY += 4;
+          pdf.text(line, 24, currentY);
+        });
+
+        // Materiales
+        currentY += 6; // Más espacio entre secciones
+        pdf.setFontSize(8);
+        pdf.setTextColor(44, 90, 160);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('MATERIALES:', 22, currentY);
+        currentY += 2; // Más espacio después del título
+        
+        if (materialsLines.length > 0) {
+          pdf.setTextColor(44, 62, 80);
+          pdf.setFont('helvetica', 'normal');
+          materialsLines.forEach((line) => {
+            currentY += 4;
+            pdf.text(line, 24, currentY);
+          });
+        } else {
+          currentY += 4;
+          pdf.setTextColor(108, 117, 125);
+          pdf.setFont('helvetica', 'italic');
+          pdf.text('N/A', 24, currentY);
+        }
+
+        // Evidencia fotográfica
+        if (task.photo) {
+          currentY += 4;
+          pdf.setFontSize(8);
+          pdf.setTextColor(44, 90, 160);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('EVIDENCIA:', 22, currentY);
+          
+          try {
+            pdf.addImage(task.photo, 'JPEG', 22, currentY + 2, 30, 22);
+            currentY += 24;
+          } catch (error) {
+            console.error('Error añadiendo imagen al PDF:', error);
+            currentY += 4;
+            pdf.setTextColor(108, 117, 125);
+            pdf.setFont('helvetica', 'italic');
+            pdf.text('Error al cargar imagen', 22, currentY);
+          }
+        }
+
+        // Actualizar y con la altura EXACTA calculada
+        y = rectStartY + requiredHeight + 3; // Solo 3 puntos de separación entre tareas
+
+        // Línea separadora más sutil
+        if (index < tasks.length - 1) {
+          pdf.setDrawColor(230, 230, 230);
+          pdf.setLineWidth(0.2);
+          pdf.line(22, y - 1, 188, y - 1);
+        }
+
+      } catch (error) {
+        console.error('Error procesando tarea para PDF:', error, task);
+        y += 20; // Espacio mínimo en caso de error
+      }
+    });
+  }
+  
+  // Footer
+  const pageCount = pdf.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    pdf.setPage(i);
+    pdf.setDrawColor(220, 220, 220);
+    pdf.setLineWidth(0.3);
+    pdf.line(20, 285, 190, 285);
+    pdf.setFontSize(7);
+    pdf.setTextColor(108, 117, 125);
+    pdf.text(`Página ${i} de ${pageCount}`, 190, 290, { align: 'right' });
+    pdf.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 20, 290);
+  }
+  
+  // Descargar
+  const sedeFileName = sede === 'all' ? 'TodasSedes' : sede.replace(/\s+/g, '_');
+  const clientFileName = client.replace(/\s+/g, '_');
+  const fileName = `SIMA_Reporte_${clientFileName}_${sedeFileName}_${monthName}_${year}.pdf`;
+  pdf.save(fileName);
+  
+  console.log('PDF generado:', fileName);
+}
+//REPORTE MATERIALES
+function generateMaterialsReport(tasks, client, sede, month, year, format) {
+  // Filtrar solo tareas con materiales
+  const tasksWithMaterials = tasks.filter(task => task.materials && task.materials.trim());
+  
+  // Extraer y agrupar materiales
+  const materialsMap = {};
+  tasksWithMaterials.forEach(task => {
+    const materials = task.materials.split(',').map(m => m.trim()).filter(m => m);
+    materials.forEach(material => {
+      if (!materialsMap[material]) {
+        materialsMap[material] = 0;
+      }
+      materialsMap[material]++;
+    });
+  });
+
+  const materialsList = Object.entries(materialsMap).map(([material, count]) => ({
+    material,
+    count
+  })).sort((a, b) => b.count - a.count);
+
+  if (format === 'pdf') {
+    generateMaterialsPDF(materialsList, client, sede, month, year);
+  } else if (format === 'excel') {
+    generateMaterialsExcel(materialsList, client, sede, month, year);
+  }
+}
+
+function generateMaterialsPDF(materials, client, sede, month, year) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF();
+  
+  const monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+  
+  const monthIndex = Math.max(0, Math.min(11, month - 1));
+  const monthName = monthNames[monthIndex];
+  
+  // Header
+  pdf.setFont('helvetica');
+  pdf.setFontSize(20);
+  pdf.setTextColor(44, 90, 160);
+  pdf.text('SIMA', 20, 25);
+  
+  pdf.setFontSize(12);
+  pdf.setTextColor(108, 117, 125);
+  pdf.text('Servicios Integrales de Mantenimiento', 20, 32);
+  
+  // Título
+  pdf.setFontSize(16);
+  pdf.setTextColor(44, 62, 80);
+  pdf.text(`Reporte de Materiales - ${monthName} ${year}`, 20, 45);
+  
+  pdf.setFontSize(12);
+  pdf.setTextColor(108, 117, 125);
+  pdf.text(`Cliente: ${client}`, 20, 52);
+  pdf.text(sede === 'all' ? 'Todas las sedes' : `Sede: ${sede}`, 20, 59);
   
   // Línea separadora
   pdf.setDrawColor(233, 236, 239);
@@ -458,191 +861,155 @@ function generatePDF(tasks, client, sede, month, year) {
   
   let y = 77;
   
-  if (tasks.length === 0) {
+  if (materials.length === 0) {
     pdf.setFontSize(12);
     pdf.setTextColor(108, 117, 125);
-    pdf.text('No hay tareas completadas en el período seleccionado.', 20, y);
+    pdf.text('No hay materiales registrados en el período seleccionado.', 20, y);
   } else {
     pdf.setFontSize(12);
     pdf.setTextColor(44, 62, 80);
-    pdf.text(`Total de tareas completadas: ${tasks.length}`, 20, y);
-    y += 15;
+    pdf.text(`Total de materiales diferentes: ${materials.length}`, 20, y);
+    y += 20;
     
-    tasks.forEach((task, index) => {
-      // Calcular altura necesaria para esta tarea
-      const descriptionLines = pdf.splitTextToSize(task.description, 165);
-      const materialsLines = task.materials ? pdf.splitTextToSize(task.materials, 165) : [];
-      const sedeLines = pdf.splitTextToSize(task.sede, 165);
+    // Encabezados de tabla
+    pdf.setFontSize(11);
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont('helvetica', 'bold');
+    
+    // Fondo para encabezados
+    pdf.setFillColor(44, 90, 160);
+    pdf.rect(20, y - 8, 150, 12, 'F'); // Material
+    pdf.rect(170, y - 8, 20, 12, 'F'); // Cantidad
+    
+    // Textos de encabezados
+    pdf.text('MATERIAL', 22, y - 2);
+    pdf.text('CANT.', 172, y - 2);
+    
+    y += 8;
+    
+    materials.forEach((item, index) => {
+      // Calcular espacio necesario para el material
+      const maxMaterialWidth = 145; // Ancho máximo para el texto del material
+      const materialLines = pdf.splitTextToSize(item.material, maxMaterialWidth);
+      const lineHeight = 5;
+      const requiredHeight = Math.max(12, materialLines.length * lineHeight + 4); // Mínimo 12, o según líneas necesarias
       
-      // Calcular altura mínima necesaria (incluyendo espacio para foto)
-      const baseHeight = 18;
-      const descriptionHeight = Math.max(1, descriptionLines.length) * 3.2;
-      const materialsHeight = materialsLines.length > 0 ? (materialsLines.length * 3.2) + 5 : 5;
-      const sedeHeight = Math.max(1, sedeLines.length) * 3.2;
-      const photoHeight = task.photo ? 45 : 0; // Espacio reservado para foto
-      
-      const totalHeight = baseHeight + descriptionHeight + materialsHeight + sedeHeight + photoHeight;
-
-      // Verificar si necesitamos una nueva página
-      if (y + totalHeight > 270) {
+      // Verificar si necesitamos nueva página
+      if (y + requiredHeight > 270) {
         pdf.addPage();
         y = 20;
+        
+        // Repetir encabezados en nueva página
+        pdf.setFontSize(11);
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFillColor(44, 90, 160);
+        pdf.rect(20, y - 8, 150, 12, 'F');
+        pdf.rect(170, y - 8, 20, 12, 'F');
+        pdf.text('MATERIAL', 22, y - 2);
+        pdf.text('CANT.', 172, y - 2);
+        y += 8;
       }
-
-      // Rectángulo de fondo alternando colores
+      
+      // Fondo alternado para las filas
       const bgColor = index % 2 === 0 ? [248, 249, 250] : [255, 255, 255];
       pdf.setFillColor(...bgColor);
-      pdf.rect(18, y - 2, 174, totalHeight, 'F');
-
-      // Borde izquierdo azul
-      pdf.setFillColor(44, 90, 160);
-      pdf.rect(18, y - 2, 3, totalHeight, 'F');
-
-      let currentY = y;
-
-      // Fecha de completado
-      let completedDateFormatted = 'Fecha no disponible';
-      if (task.completedAt) {
-        let completedDate;
-        if (task.completedAt.toDate) {
-          completedDate = task.completedAt.toDate();
-        } else if (task.completedAt.seconds) {
-          completedDate = new Date(task.completedAt.seconds * 1000);
-        }
-        
-        if (completedDate) {
-          completedDateFormatted = completedDate.toLocaleDateString('es-ES', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-        }
-      }
+      pdf.rect(20, y, 150, requiredHeight, 'F'); // Fondo material
+      pdf.rect(170, y, 20, requiredHeight, 'F'); // Fondo cantidad
       
-      pdf.setFontSize(8);
-      pdf.setTextColor(108, 117, 125);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Completada: ${completedDateFormatted}`, 190, currentY, { align: 'right' });
-
-      currentY += 5.5;
-
-      // Cliente
-      pdf.setFontSize(8);
-      pdf.setTextColor(44, 90, 160);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('CLIENTE:', 25, currentY);
-
-      pdf.setTextColor(44, 62, 80);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(task.client, 45, currentY);
-
-      currentY += 4.5;
-
-      // Sede
-      pdf.setFontSize(8);
-      pdf.setTextColor(44, 90, 160);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('SEDE:', 25, currentY);
-
-      pdf.setTextColor(44, 62, 80);
-      pdf.setFont('helvetica', 'normal');
-      sedeLines.forEach((line, i) => {
-        pdf.text(line, 45, currentY + (i * 3.2));
-      });
-
-      currentY += (sedeLines.length * 3.2) + 2.5;
-
-      // Descripción completa
-      pdf.setFontSize(8);
-      pdf.setTextColor(44, 90, 160);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('DESCRIPCIÓN:', 25, currentY);
-
-      pdf.setTextColor(44, 62, 80);
-      pdf.setFont('helvetica', 'normal');
-      descriptionLines.forEach((line, i) => {
-        pdf.text(line, 25, currentY + 4 + (i * 3.2));
-      });
-
-      currentY += 4 + (descriptionLines.length * 3.2) + 2.5;
-
-      // Materiales completos
-      pdf.setFontSize(8);
-      pdf.setTextColor(44, 90, 160);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('MATERIALES:', 25, currentY);
-
-      if (materialsLines.length > 0) {
-        pdf.setTextColor(44, 62, 80);
-        pdf.setFont('helvetica', 'normal');
-        materialsLines.forEach((line, i) => {
-          pdf.text(line, 25, currentY + 4 + (i * 3.2));
-        });
-        currentY += 4 + (materialsLines.length * 3.2) + 2.5;
-      } else {
-        pdf.setTextColor(108, 117, 125);
-        pdf.setFont('helvetica', 'italic');
-        pdf.text('N/A', 25, currentY + 4);
-        currentY += 4 + 2.5;
-      }
-
-      // Foto (si existe)
-      if (task.photo) {
-        pdf.setFontSize(8);
-        pdf.setTextColor(44, 90, 160);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('EVIDENCIA FOTOGRÁFICA:', 25, currentY);
-        
-        try {
-          // Añadir imagen con tamaño limitado
-          pdf.addImage(task.photo, 'JPEG', 25, currentY + 3, 40, 30);
-          currentY += 35;
-        } catch (error) {
-          console.error('Error añadiendo imagen al PDF:', error);
-          pdf.setTextColor(108, 117, 125);
-          pdf.setFont('helvetica', 'italic');
-          pdf.text('Error al cargar imagen', 25, currentY + 4);
-          currentY += 8;
-        }
-      }
-
-      y += totalHeight + 4;
+      // Bordes de la fila
+      pdf.setDrawColor(220, 220, 220);
+      pdf.setLineWidth(0.3);
+      pdf.rect(20, y, 150, requiredHeight); // Borde material
+      pdf.rect(170, y, 20, requiredHeight); // Borde cantidad
       
-      // Línea separadora entre tareas
-      if (index < tasks.length - 1) {
-        pdf.setDrawColor(220, 220, 220);
-        pdf.setLineWidth(0.5);
-        pdf.line(20, y - 4, 190, y - 4);
-      }
+      // Texto del material (múltiples líneas si es necesario)
+      pdf.setFontSize(9);
+      pdf.setTextColor(44, 62, 80);
+      pdf.setFont('helvetica', 'normal');
+      
+      const startY = y + lineHeight;
+      materialLines.forEach((line, lineIndex) => {
+        const lineY = startY + (lineIndex * lineHeight);
+        pdf.text(line, 22, lineY);
+      });
+      
+      // Cantidad (centrada verticalmente en la celda)
+      const quantityY = y + (requiredHeight / 2) + 2;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(44, 90, 160);
+      pdf.text(item.count.toString(), 180, quantityY, { align: 'center' });
+      
+      y += requiredHeight;
     });
+    
+    // Línea final de la tabla
+    pdf.setDrawColor(44, 90, 160);
+    pdf.setLineWidth(0.8);
+    pdf.line(20, y, 190, y);
   }
   
-  // Footer mejorado
+  // Footer
   const pageCount = pdf.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
-    
-    // Línea superior del footer
     pdf.setDrawColor(220, 220, 220);
     pdf.setLineWidth(0.5);
     pdf.line(20, 275, 190, 275);
-    
     pdf.setFontSize(8);
     pdf.setTextColor(108, 117, 125);
     pdf.text(`Página ${i} de ${pageCount}`, 190, 282, { align: 'right' });
     pdf.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 20, 282);
-    pdf.text('SIMA - Servicios Integrales de Mantenimiento', 20, 287);
   }
   
-  // Descargar el PDF con nombre mejorado
+  // Descargar
   const sedeFileName = sede === 'all' ? 'TodasSedes' : sede.replace(/\s+/g, '_');
   const clientFileName = client.replace(/\s+/g, '_');
-  const fileName = `SIMA_Reporte_${clientFileName}_${sedeFileName}_${monthName}_${year}.pdf`;
-  pdf.save(fileName);
+  pdf.save(`SIMA_Materiales_${clientFileName}_${sedeFileName}_${monthName}_${year}.pdf`);
 }
 
+function generateMaterialsExcel(materials, client, sede, month, year) {
+  const monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+  
+  const monthIndex = Math.max(0, Math.min(11, month - 1));
+  const monthName = monthNames[monthIndex];
+  
+  const wb = XLSX.utils.book_new();
+  const excelData = [];
+  
+  // Encabezados
+  excelData.push(['SIMA - Reporte de Materiales']);
+  excelData.push([]);
+  excelData.push([`Reporte de Materiales - ${monthName} ${year}`]);
+  excelData.push([`Cliente: ${client}`]);
+  excelData.push([`Sede: ${sede === 'all' ? 'Todas las sedes' : sede}`]);
+  excelData.push([`Total de materiales diferentes: ${materials.length}`]);
+  excelData.push([]);
+  
+  // Encabezados de tabla
+  excelData.push(['Material', 'Cantidad Usada']);
+  
+  // Datos
+  materials.forEach(item => {
+    excelData.push([item.material, item.count]);
+  });
+  
+  excelData.push([]);
+  excelData.push([`Generado: ${new Date().toLocaleString('es-ES')}`]);
+  
+  const ws = XLSX.utils.aoa_to_sheet(excelData);
+  ws['!cols'] = [{ wch: 60 }, { wch: 20 }];
+  
+  XLSX.utils.book_append_sheet(wb, ws, "Reporte Materiales");
+  
+  const sedeFileName = sede === 'all' ? 'TodasSedes' : sede.replace(/\s+/g, '_');
+  const clientFileName = client.replace(/\s+/g, '_');
+  XLSX.writeFile(wb, `SIMA_Materiales_${clientFileName}_${sedeFileName}_${monthName}_${year}.xlsx`);
+}
 /* ===== DOM ready ===== */
 document.addEventListener('DOMContentLoaded', () => {
   const path = window.location.pathname.split('/').pop();
@@ -1452,6 +1819,10 @@ document.addEventListener('DOMContentLoaded', () => {
             Sede: ${task.sede}
           </div>
           <div class="meta">
+            <i class="fas fa-wrench"></i>
+            Tipo: ${task.type ? (task.type.charAt(0).toUpperCase() + task.type.slice(1)) : 'N/A'}
+          </div>
+          <div class="meta">
             <i class="fas fa-calendar-plus"></i>
             Inscrita: ${createdAtStr}
           </div>
@@ -1586,11 +1957,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // CRUD tasks
-      async function addTask(description, client, sede) {
+      async function addTask(description, client, sede, type) {
         const newTask = {
           description,
           client,
           sede,
+          type, // Nuevo campo
           completed: false,
           completedAt: null,
           materials: null,
@@ -1600,6 +1972,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const success = await addTaskToFirestore(user.uid, newTask);
         if (success) {
           await loadTasks();
+          // Limpiar también el selector de tipo
+          document.getElementById('taskTypeSelect').value = '';
         } else {
           alert('Error al añadir la tarea');
         }
@@ -1640,22 +2014,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // --- Generar reportes ---
-      async function generateReport(client, sede, month, format) {
+      async function generateReport(client, sede, month, format, reportType) {
         const [year, monthNum] = month.split('-').map(Number);
-        
-        console.log('Generando reporte:');
-        console.log('Cliente:', client, 'Sede:', sede);
-        console.log('Mes seleccionado:', month);
-        console.log('Año:', year, 'Mes número:', monthNum);
-        console.log('Formato:', format);
         
         try {
           const reportTasks = await getTasksByClientSedeAndMonth(user.uid, client, sede, year, monthNum);
           
-          if (format === 'pdf') {
-            generatePDF(reportTasks, client, sede, monthNum, year);
-          } else if (format === 'excel') {
-            generateExcelReport(reportTasks, client, sede, monthNum, year);
+          if (reportType === 'materials') {
+            generateMaterialsReport(reportTasks, client, sede, monthNum, year, format);
+          } else {
+            // Reporte normal de tareas
+            if (format === 'pdf') {
+              generatePDF(reportTasks, client, sede, monthNum, year);
+            } else if (format === 'excel') {
+              generateExcelReport(reportTasks, client, sede, monthNum, year);
+            }
           }
           
           hideReportModal();
@@ -1753,15 +2126,18 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       // Task form
+      // Task form
       taskForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const desc = taskInput.value.trim();
         const client = taskClientSelect.value;
         const sede = sedeSelect.value;
+        const taskType = document.getElementById('taskTypeSelect').value; // AÑADIR ESTA LÍNEA
         
         if (!desc) return alert('Ingrese descripción de la tarea');
         if (!client) return alert('Seleccione un cliente');
         if (!sede) return alert('Seleccione una sede');
+        if (!taskType) return alert('Seleccione el tipo de mantenimiento'); // AÑADIR ESTA LÍNEA
         
         const submitBtn = taskForm.querySelector('button[type="submit"]');
         const originalHTML = submitBtn.innerHTML;
@@ -1769,8 +2145,9 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           submitBtn.disabled = true;
           submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Añadiendo...';
-          await addTask(desc, client, sede);
+          await addTask(desc, client, sede, taskType); // MODIFICAR ESTA LÍNEA
           taskInput.value = '';
+          document.getElementById('taskTypeSelect').value = ''; // AÑADIR ESTA LÍNEA
         } finally {
           submitBtn.disabled = false;
           submitBtn.innerHTML = originalHTML;
@@ -1813,41 +2190,65 @@ document.addEventListener('DOMContentLoaded', () => {
       // Complete modal events
       completeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-  const materials = materialsInput.value.trim();
-  if (!currentTaskToComplete) return;
-  const submitBtn = completeForm.querySelector('button[type="submit"]');
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completando...';
-  await completeTask(currentTaskToComplete.id, materials, selectedPhoto);
-  submitBtn.disabled = false;
-  submitBtn.innerHTML = '<i class="fas fa-check"></i> Completar Tarea';
+        const materials = materialsInput.value.trim();
+        if (!currentTaskToComplete) return;
+        const submitBtn = completeForm.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completando...';
+        await completeTask(currentTaskToComplete.id, materials, selectedPhoto);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-check"></i> Completar Tarea';
       });
 
       document.getElementById('cancelComplete').addEventListener('click', hideCompleteModal);
 
-      // Report modal events - ACTUALIZADO PARA MÚLTIPLES FORMATOS
+      // Event listener corregido para el formulario de reporte
       reportForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const client = reportClientSelect.value;
         const sede = reportSedeSelect.value;
         const month = reportMonth.value;
+        const reportType = document.getElementById('reportType').value;
         
         if (!client) return alert('Seleccione un cliente');
         if (!sede) return alert('Seleccione una sede');
         if (!month) return alert('Seleccione un mes');
+        if (!reportType) return alert('Seleccione el tipo de reporte');
         
-        // Determinar qué botón fue presionado
         const clickedButton = e.submitter;
         const format = clickedButton.getAttribute('data-format');
         
-        const originalHTML = clickedButton.innerHTML;
-        clickedButton.disabled = true;
-        clickedButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
+        console.log('Iniciando reporte con parámetros:', {
+          client,
+          sede,
+          month,
+          format,
+          reportType
+        });
         
-        await generateReport(client, sede, month, format);
+        // Deshabilitar botones durante la generación
+        const submitButtons = reportForm.querySelectorAll('button[type="submit"]');
+        submitButtons.forEach(btn => {
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
+        });
         
-        clickedButton.disabled = false;
-        clickedButton.innerHTML = originalHTML;
+        try {
+          await generateReport(client, sede, month, format, reportType);
+        } catch (error) {
+          console.error('Error en event listener del reporte:', error);
+          alert('Error al generar el reporte');
+        } finally {
+          // Rehabilitar botones
+          submitButtons.forEach((btn, index) => {
+            btn.disabled = false;
+            if (index === 0) {
+              btn.innerHTML = '<i class="fas fa-file-pdf"></i> Descargar PDF';
+            } else {
+              btn.innerHTML = '<i class="fas fa-file-excel"></i> Descargar Excel';
+            }
+          });
+        }
       });
 
       document.getElementById('cancelReport').addEventListener('click', hideReportModal);
