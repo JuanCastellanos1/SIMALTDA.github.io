@@ -289,7 +289,374 @@ async function getTasksByClientSedeAndMonth(userId, client, sede, year, month) {
     return [];
   }
 }
+// === FUNCIONES PARA REPORTES SEMANALES Y PREVIEW ===
 
+// Obtener tareas por rango de fechas (para reportes semanales y mensuales)
+async function getTasksByDateRange(userId, client, sede, startDate, endDate) {
+  try {
+    console.log('Filtrando tareas por rango:', startDate, 'a', endDate);
+    
+    let tasksRef = db.collection('users').doc(userId).collection('tasks')
+      .where('completed', '==', true)
+      .where('client', '==', client);
+    
+    if (sede !== 'all') {
+      tasksRef = tasksRef.where('sede', '==', sede);
+    }
+    
+    const snapshot = await tasksRef.get();
+    const allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    const filteredTasks = allTasks.filter(task => {
+      if (!task.completedAt) return false;
+      
+      let completedDate;
+      
+      try {
+        if (typeof task.completedAt === 'object' && task.completedAt !== null) {
+          if (task.completedAt.toDate && typeof task.completedAt.toDate === 'function') {
+            completedDate = task.completedAt.toDate();
+          } else if (task.completedAt.seconds) {
+            completedDate = new Date(task.completedAt.seconds * 1000);
+          } else if (task.completedAt instanceof Date) {
+            completedDate = task.completedAt;
+          }
+        } else if (typeof task.completedAt === 'string') {
+          completedDate = new Date(task.completedAt);
+        } else if (typeof task.completedAt === 'number') {
+          completedDate = new Date(task.completedAt);
+        }
+        
+        if (!completedDate || isNaN(completedDate.getTime())) {
+          return false;
+        }
+        
+        return completedDate >= startDate && completedDate <= endDate;
+      } catch (error) {
+        console.error('Error procesando fecha:', error);
+        return false;
+      }
+    });
+    
+    return filteredTasks.sort((a, b) => {
+      const getDate = (task) => {
+        if (!task.completedAt) return new Date(0);
+        if (task.completedAt.toDate) return task.completedAt.toDate();
+        if (task.completedAt.seconds) return new Date(task.completedAt.seconds * 1000);
+        if (task.completedAt instanceof Date) return task.completedAt;
+        if (typeof task.completedAt === 'string') return new Date(task.completedAt);
+        if (typeof task.completedAt === 'number') return new Date(task.completedAt);
+        return new Date(0);
+      };
+      return getDate(a) - getDate(b);
+    });
+  } catch (error) {
+    console.error('Error obteniendo tareas:', error);
+    return [];
+  }
+}
+
+// Calcular semanas del mes
+function getWeeksInMonth(year, month) {
+  const weeks = [];
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+  
+  let currentWeekStart = new Date(firstDay);
+  let weekNumber = 1;
+  
+  while (currentWeekStart <= lastDay) {
+    let weekEnd = new Date(currentWeekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    
+    if (weekEnd > lastDay) {
+      weekEnd = new Date(lastDay);
+    }
+    
+    weeks.push({
+      number: weekNumber,
+      start: new Date(currentWeekStart),
+      end: new Date(weekEnd),
+      label: `Semana ${weekNumber} (${currentWeekStart.getDate()}/${month} - ${weekEnd.getDate()}/${month})`
+    });
+    
+    currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+    weekNumber++;
+  }
+  
+  return weeks;
+}
+
+// Generar HTML para preview del reporte
+function generateReportHTML(tasks, client, sede, periodLabel, reportType) {
+  const tasksHTML = reportType === 'materials' ? 
+    generateMaterialsHTML(tasks) : 
+    generateTasksHTML(tasks, client, sede);
+  
+  return `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>SIMA - Reporte ${periodLabel}</title>
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          padding: 30px;
+          background: #f8f9fa;
+        }
+        .container {
+          max-width: 900px;
+          margin: 0 auto;
+          background: white;
+          padding: 40px;
+          border-radius: 12px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 30px;
+          border-bottom: 3px solid #2c5aa0;
+          padding-bottom: 20px;
+        }
+        .header h1 {
+          color: #2c5aa0;
+          font-size: 2.5rem;
+          margin-bottom: 5px;
+        }
+        .header .subtitle {
+          color: #6c757d;
+          font-size: 1rem;
+        }
+        .info-section {
+          background: #f8f9fa;
+          padding: 20px;
+          border-radius: 8px;
+          margin-bottom: 30px;
+        }
+        .info-section h2 {
+          color: #2c3e50;
+          font-size: 1.5rem;
+          margin-bottom: 15px;
+        }
+        .info-row {
+          margin: 8px 0;
+          color: #495057;
+          font-size: 1rem;
+        }
+        .info-row strong {
+          color: #2c5aa0;
+        }
+        .task {
+          background: white;
+          border: 1px solid #e9ecef;
+          border-left: 4px solid #2c5aa0;
+          padding: 20px;
+          margin-bottom: 20px;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+          overflow: hidden;
+          word-wrap: break-word;
+        }
+        .task h3 {
+          color: #2c5aa0;
+          margin-bottom: 12px;
+          font-size: 1.1rem;
+          word-wrap: break-word;
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          white-space: pre-wrap;
+        }
+        .task-detail {
+          margin: 8px 0;
+          color: #495057;
+          line-height: 1.6;
+          word-wrap: break-word;
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          white-space: pre-wrap;
+        }
+        .task-detail strong {
+          color: #2c3e50;
+          display: inline-block;
+          min-width: 120px;
+          flex-shrink: 0;
+        }
+        .task-photo {
+          margin-top: 15px;
+          text-align: center;
+        }
+        .task-photo img {
+          max-width: 300px;
+          max-height: 250px;
+          border-radius: 8px;
+          border: 1px solid #ddd;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .materials-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 20px;
+        }
+        .materials-table th {
+          background: #2c5aa0;
+          color: white;
+          padding: 12px;
+          text-align: left;
+          font-weight: 600;
+        }
+        .materials-table td {
+          padding: 12px;
+          border-bottom: 1px solid #e9ecef;
+        }
+        .materials-table tr:nth-child(even) {
+          background: #f8f9fa;
+        }
+        .no-tasks {
+          text-align: center;
+          color: #6c757d;
+          font-style: italic;
+          padding: 40px;
+        }
+        .actions {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          display: flex;
+          gap: 10px;
+          z-index: 1000;
+        }
+        .btn {
+          padding: 12px 20px;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 14px;
+          transition: all 0.3s;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .btn-pdf {
+          background: #dc3545;
+          color: white;
+        }
+        .btn-pdf:hover {
+          background: #c82333;
+          transform: translateY(-2px);
+        }
+        .btn-excel {
+          background: #28a745;
+          color: white;
+        }
+        .btn-excel:hover {
+          background: #218838;
+          transform: translateY(-2px);
+        }
+        @media print {
+          .actions { display: none; }
+          body { background: white; padding: 0; }
+          .container { box-shadow: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="actions">
+        <button class="btn btn-pdf" onclick="window.downloadPDF()">
+          <i class="fas fa-file-pdf"></i> Descargar PDF
+        </button>
+        <button class="btn btn-excel" onclick="window.downloadExcel()">
+          <i class="fas fa-file-excel"></i> Descargar Excel
+        </button>
+      </div>
+      
+      <div class="container">
+        <div class="header">
+          <h1><i class="fas fa-tools"></i> SIMA</h1>
+          <div class="subtitle">Servicios Integrales de Mantenimiento</div>
+        </div>
+        
+        <div class="info-section">
+          <h2>Reporte de ${reportType === 'materials' ? 'Materiales' : 'Mantenimiento'}</h2>
+          <div class="info-row"><strong>Período:</strong> ${periodLabel}</div>
+          <div class="info-row"><strong>Cliente:</strong> ${client}</div>
+          <div class="info-row"><strong>Sede:</strong> ${sede === 'all' ? 'Todas las sedes' : sede}</div>
+          <div class="info-row"><strong>Total:</strong> ${tasks.length}</div>
+          <div class="info-row"><strong>Generado:</strong> ${new Date().toLocaleString('es-ES')}</div>
+        </div>
+        
+        ${tasksHTML}
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+function generateTasksHTML(tasks, client, sede) {
+  if (tasks.length === 0) {
+    return '<div class="no-tasks">No hay tareas completadas en el período seleccionado.</div>';
+  }
+  
+  return tasks.map(task => `
+    <div class="task">
+      <h3>${task.description || 'Sin descripción'}</h3>
+      ${sede === 'all' ? `<div class="task-detail"><strong>Cliente:</strong> ${task.client || 'N/A'}</div>` : ''}
+      <div class="task-detail"><strong>Sede:</strong> ${task.sede || 'N/A'}</div>
+      <div class="task-detail"><strong>Tipo:</strong> ${task.type ? task.type.charAt(0).toUpperCase() + task.type.slice(1) : 'N/A'}</div>
+      <div class="task-detail"><strong>Fecha Ingreso:</strong> ${safeFormatDate(task.createdAt)}</div>
+      <div class="task-detail"><strong>Fecha Completado:</strong> ${safeFormatDate(task.completedAt)}</div>
+      <div class="task-detail"><strong>Materiales:</strong> ${task.materials || 'N/A'}</div>
+      ${task.photo ? `
+        <div class="task-photo">
+          <img src="${task.photo}" alt="Evidencia fotográfica">
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function generateMaterialsHTML(tasks) {
+  const tasksWithMaterials = tasks.filter(task => task.materials && task.materials.trim());
+  
+  if (tasksWithMaterials.length === 0) {
+    return '<div class="no-tasks">No hay materiales registrados en el período seleccionado.</div>';
+  }
+  
+  const materialsMap = {};
+  tasksWithMaterials.forEach(task => {
+    const materials = task.materials.split(',').map(m => m.trim()).filter(m => m);
+    materials.forEach(material => {
+      materialsMap[material] = (materialsMap[material] || 0) + 1;
+    });
+  });
+  
+  const materialsList = Object.entries(materialsMap)
+    .map(([material, count]) => ({ material, count }))
+    .sort((a, b) => b.count - a.count);
+  
+  return `
+    <table class="materials-table">
+      <thead>
+        <tr>
+          <th>Material</th>
+          <th style="width: 100px; text-align: center;">Cantidad</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${materialsList.map(item => `
+          <tr>
+            <td>${item.material}</td>
+            <td style="text-align: center; font-weight: 600;">${item.count}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
 // También agregar esta función de debugging para verificar las tareas
 async function debugTaskDates(userId) {
   try {
@@ -439,27 +806,17 @@ function resizeImage(file, maxWidth = 800, maxHeight = 600, quality = 0.8) {
 }
 
 // Función corregida para generar Excel
-function generateExcelReport(tasks, client, sede, month, year) {
+function generateExcelReport(tasks, client, sede, periodLabel) {
   console.log('Generando Excel con', tasks.length, 'tareas');
   
-  const monthNames = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-  ];
-  
-  const monthIndex = Math.max(0, Math.min(11, month - 1));
-  const monthName = monthNames[monthIndex];
-  
-  // Crear workbook
   const wb = XLSX.utils.book_new();
-  
-  // Preparar datos
   const excelData = [];
   
   // Encabezados
   excelData.push(['SIMA - Servicios Integrales de Mantenimiento']);
   excelData.push([]);
-  excelData.push([`Reporte de Mantenimiento - ${monthName} ${year}`]);
+  excelData.push([`Reporte de Mantenimiento`]);
+  excelData.push([`Período: ${periodLabel}`]);
   excelData.push([`Cliente: ${client}`]);
   excelData.push([`Sede: ${sede === 'all' ? 'Todas las sedes' : sede}`]);
   excelData.push([`Total de tareas completadas: ${tasks.length}`]);
@@ -495,7 +852,6 @@ function generateExcelReport(tasks, client, sede, month, year) {
         ]);
       } catch (error) {
         console.error('Error procesando tarea para Excel:', error, task);
-        // Agregar fila con error pero no fallar completamente
         excelData.push([
           'Error en fecha',
           task.client || 'N/A',
@@ -512,27 +868,23 @@ function generateExcelReport(tasks, client, sede, month, year) {
   excelData.push([]);
   excelData.push([`Generado: ${new Date().toLocaleString('es-ES')}`]);
   
-  // Crear worksheet
   const ws = XLSX.utils.aoa_to_sheet(excelData);
   
-  // Configurar anchos de columna
   ws['!cols'] = [
-    { wch: 20 }, // Fecha Completada
-    { wch: 25 }, // Cliente
-    { wch: 25 }, // Sede
-    { wch: 15 }, // Tipo
-    { wch: 50 }, // Descripción
-    { wch: 40 }, // Materiales
-    { wch: 12 }  // Tiene Foto
+    { wch: 20 },
+    { wch: 25 },
+    { wch: 25 },
+    { wch: 15 },
+    { wch: 50 },
+    { wch: 40 },
+    { wch: 12 }
   ];
   
-  // Añadir worksheet al workbook
   XLSX.utils.book_append_sheet(wb, ws, "Reporte Mantenimiento");
   
-  // Generar archivo y descargar
   const sedeFileName = sede === 'all' ? 'TodasSedes' : sede.replace(/\s+/g, '_');
   const clientFileName = client.replace(/\s+/g, '_');
-  const fileName = `SIMA_Reporte_${clientFileName}_${sedeFileName}_${monthName}_${year}.xlsx`;
+  const fileName = `SIMA_Reporte_${clientFileName}_${sedeFileName}_${periodLabel.replace(/\s+/g, '_')}.xlsx`;
   
   XLSX.writeFile(wb, fileName);
   
@@ -540,7 +892,7 @@ function generateExcelReport(tasks, client, sede, month, year) {
 }
 
 // Función optimizada para generar PDF sin espacios en blanco excesivos
-function generatePDF(tasks, client, sede, month, year) {
+function generatePDF(tasks, client, sede, startDate, endDate, periodLabel) {
   console.log('Generando PDF con', tasks.length, 'tareas');
   
   const { jsPDF } = window.jspdf;
@@ -561,29 +913,20 @@ function generatePDF(tasks, client, sede, month, year) {
   // Título del reporte
   pdf.setFontSize(14);
   pdf.setTextColor(44, 62, 80);
-  const monthNames = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-  ];
-  
-  const monthIndex = Math.max(0, Math.min(11, month - 1));
-  const monthName = monthNames[monthIndex];
-  
-  const reportTitle = `Reporte de Mantenimiento - ${monthName} ${year}`;
-  pdf.text(reportTitle, 20, 35);
+  pdf.text('Reporte de Mantenimiento', 20, 35);
   
   pdf.setFontSize(10);
   pdf.setTextColor(108, 117, 125);
-  const clientText = `Cliente: ${client}`;
+  pdf.text(`Período: ${periodLabel}`, 20, 41);
+  pdf.text(`Cliente: ${client}`, 20, 46);
   const sedeText = sede === 'all' ? 'Todas las sedes' : `Sede: ${sede}`;
-  pdf.text(clientText, 20, 41);
-  pdf.text(sedeText, 20, 46);
+  pdf.text(sedeText, 20, 51);
   
   // Línea separadora
   pdf.setDrawColor(233, 236, 239);
-  pdf.line(20, 50, 190, 50);
+  pdf.line(20, 55, 190, 55);
   
-  let y = 58;
+  let y = 63;
   
   if (tasks.length === 0) {
     pdf.setFontSize(10);
@@ -597,39 +940,39 @@ function generatePDF(tasks, client, sede, month, year) {
     
     tasks.forEach((task, index) => {
       try {
-        // Preparar contenido
+        // Preparar contenido con quiebre de palabras largas
         const description = task.description || 'Sin descripción';
         const materials = task.materials || '';
         const descriptionLines = pdf.splitTextToSize(description, 165);
         const materialsLines = materials ? pdf.splitTextToSize(materials, 165) : [];
 
         // Calcular altura EXACTA necesaria
-        let requiredHeight = 2; // Padding inicial reducido
-        requiredHeight += 4; // Espacio para contenido principal
+        let requiredHeight = 2;
+        requiredHeight += 4;
         if (sede !== 'all') {
-          requiredHeight += 4; // Cliente (solo si no es "todas las sedes")
+          requiredHeight += 4;
         }
-        requiredHeight += 4; // Sede  
-        requiredHeight += 4; // Tipo
-        requiredHeight += 5; // Espacio antes descripción (aumentado)
-        requiredHeight += 2; // Espacio después título descripción
-        requiredHeight += (descriptionLines.length * 4); // Descripción
-        requiredHeight += 6; // Espacio antes materiales (aumentado)
-        requiredHeight += 2; // Espacio después título materiales
+        requiredHeight += 4;
+        requiredHeight += 4;
+        requiredHeight += 5;
+        requiredHeight += 2;
+        requiredHeight += (descriptionLines.length * 4);
+        requiredHeight += 6;
+        requiredHeight += 2;
         
         if (materialsLines.length > 0) {
-          requiredHeight += (materialsLines.length * 4); // Materiales
+          requiredHeight += (materialsLines.length * 4);
         } else {
-          requiredHeight += 4; // "N/A"
+          requiredHeight += 4;
         }
         
         if (task.photo) {
-          requiredHeight += 4; // Título evidencia
-          requiredHeight += 22; // Imagen
-          requiredHeight += 2; // Espacio después imagen
+          requiredHeight += 4;
+          requiredHeight += 22;
+          requiredHeight += 2;
         }
         
-        requiredHeight += 4; // Padding final
+        requiredHeight += 4;
 
         // Verificar si necesitamos una nueva página
         if (y + requiredHeight > 270) {
@@ -649,26 +992,22 @@ function generatePDF(tasks, client, sede, month, year) {
         pdf.rect(18, rectStartY, 2, requiredHeight, 'F');
 
         // Dibujar contenido con posiciones EXACTAS
-        let currentY = y + 2; // Reducir padding inicial
+        let currentY = y + 2;
 
-        // Fecha de ingreso (creación) - en esquina superior derecha
+        // Fecha de ingreso
         const createdDateFormatted = safeFormatDate(task.createdAt);
         pdf.setFontSize(7);
         pdf.setTextColor(108, 117, 125);
         pdf.setFont('helvetica', 'normal');
         pdf.text(`Ingresada: ${createdDateFormatted}`, 188, currentY + 2, { align: 'right' });
 
-        // Fecha de completado - en esquina superior derecha
+        // Fecha de completado
         const completedDateFormatted = safeFormatDate(task.completedAt);
-        pdf.setFontSize(7);
-        pdf.setTextColor(108, 117, 125);
-        pdf.setFont('helvetica', 'normal');
         pdf.text(`Completada: ${completedDateFormatted}`, 188, currentY + 5, { align: 'right' });
 
-        // El contenido principal comienza inmediatamente después del padding inicial
-        currentY = y + 4; // Posición fija para el contenido principal
+        currentY = y + 4;
 
-        // Cliente (solo mostrar si no es reporte de "todas las sedes")
+        // Cliente
         if (sede !== 'all') {
           pdf.setFontSize(8);
           pdf.setTextColor(44, 90, 160);
@@ -680,7 +1019,7 @@ function generatePDF(tasks, client, sede, month, year) {
           currentY += 4;
         }
 
-        // Sede (sin espacio adicional cuando no hay cliente)
+        // Sede
         pdf.setFontSize(8);
         pdf.setTextColor(44, 90, 160);
         pdf.setFont('helvetica', 'bold');
@@ -701,12 +1040,12 @@ function generatePDF(tasks, client, sede, month, year) {
         currentY += 4;
 
         // Descripción
-        currentY += 5; // Más espacio antes
+        currentY += 5;
         pdf.setFontSize(8);
         pdf.setTextColor(44, 90, 160);
         pdf.setFont('helvetica', 'bold');
         pdf.text('DESCRIPCIÓN:', 22, currentY);
-        currentY += 2; // Más espacio después del título
+        currentY += 2;
         pdf.setTextColor(44, 62, 80);
         pdf.setFont('helvetica', 'normal');
         descriptionLines.forEach((line) => {
@@ -715,12 +1054,12 @@ function generatePDF(tasks, client, sede, month, year) {
         });
 
         // Materiales
-        currentY += 6; // Más espacio entre secciones
+        currentY += 6;
         pdf.setFontSize(8);
         pdf.setTextColor(44, 90, 160);
         pdf.setFont('helvetica', 'bold');
         pdf.text('MATERIALES:', 22, currentY);
-        currentY += 2; // Más espacio después del título
+        currentY += 2;
         
         if (materialsLines.length > 0) {
           pdf.setTextColor(44, 62, 80);
@@ -756,10 +1095,8 @@ function generatePDF(tasks, client, sede, month, year) {
           }
         }
 
-        // Actualizar y con la altura EXACTA calculada
-        y = rectStartY + requiredHeight + 3; // Solo 3 puntos de separación entre tareas
+        y = rectStartY + requiredHeight + 3;
 
-        // Línea separadora más sutil
         if (index < tasks.length - 1) {
           pdf.setDrawColor(230, 230, 230);
           pdf.setLineWidth(0.2);
@@ -768,7 +1105,7 @@ function generatePDF(tasks, client, sede, month, year) {
 
       } catch (error) {
         console.error('Error procesando tarea para PDF:', error, task);
-        y += 20; // Espacio mínimo en caso de error
+        y += 20;
       }
     });
   }
@@ -789,7 +1126,7 @@ function generatePDF(tasks, client, sede, month, year) {
   // Descargar
   const sedeFileName = sede === 'all' ? 'TodasSedes' : sede.replace(/\s+/g, '_');
   const clientFileName = client.replace(/\s+/g, '_');
-  const fileName = `SIMA_Reporte_${clientFileName}_${sedeFileName}_${monthName}_${year}.pdf`;
+  const fileName = `SIMA_Reporte_${clientFileName}_${sedeFileName}_${periodLabel.replace(/\s+/g, '_')}.pdf`;
   pdf.save(fileName);
   
   console.log('PDF generado:', fileName);
@@ -823,19 +1160,10 @@ function generateMaterialsReport(tasks, client, sede, month, year, format) {
   }
 }
 
-function generateMaterialsPDF(materials, client, sede, month, year) {
+function generateMaterialsPDF(materialsList, client, sede, periodLabel) {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
   
-  const monthNames = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-  ];
-  
-  const monthIndex = Math.max(0, Math.min(11, month - 1));
-  const monthName = monthNames[monthIndex];
-  
-  // Header
   pdf.setFont('helvetica');
   pdf.setFontSize(20);
   pdf.setTextColor(44, 90, 160);
@@ -845,61 +1173,52 @@ function generateMaterialsPDF(materials, client, sede, month, year) {
   pdf.setTextColor(108, 117, 125);
   pdf.text('Servicios Integrales de Mantenimiento', 20, 32);
   
-  // Título
   pdf.setFontSize(16);
   pdf.setTextColor(44, 62, 80);
-  pdf.text(`Reporte de Materiales - ${monthName} ${year}`, 20, 45);
+  pdf.text(`Reporte de Materiales`, 20, 45);
   
   pdf.setFontSize(12);
   pdf.setTextColor(108, 117, 125);
-  pdf.text(`Cliente: ${client}`, 20, 52);
-  pdf.text(sede === 'all' ? 'Todas las sedes' : `Sede: ${sede}`, 20, 59);
+  pdf.text(`Período: ${periodLabel}`, 20, 52);
+  pdf.text(`Cliente: ${client}`, 20, 59);
+  pdf.text(sede === 'all' ? 'Todas las sedes' : `Sede: ${sede}`, 20, 66);
   
-  // Línea separadora
   pdf.setDrawColor(233, 236, 239);
-  pdf.line(20, 65, 190, 65);
+  pdf.line(20, 72, 190, 72);
   
-  let y = 77;
+  let y = 84;
   
-  if (materials.length === 0) {
+  if (materialsList.length === 0) {
     pdf.setFontSize(12);
     pdf.setTextColor(108, 117, 125);
     pdf.text('No hay materiales registrados en el período seleccionado.', 20, y);
   } else {
     pdf.setFontSize(12);
     pdf.setTextColor(44, 62, 80);
-    pdf.text(`Total de materiales diferentes: ${materials.length}`, 20, y);
+    pdf.text(`Total de materiales diferentes: ${materialsList.length}`, 20, y);
     y += 20;
     
-    // Encabezados de tabla
     pdf.setFontSize(11);
     pdf.setTextColor(255, 255, 255);
     pdf.setFont('helvetica', 'bold');
-    
-    // Fondo para encabezados
     pdf.setFillColor(44, 90, 160);
-    pdf.rect(20, y - 8, 150, 12, 'F'); // Material
-    pdf.rect(170, y - 8, 20, 12, 'F'); // Cantidad
-    
-    // Textos de encabezados
+    pdf.rect(20, y - 8, 150, 12, 'F');
+    pdf.rect(170, y - 8, 20, 12, 'F');
     pdf.text('MATERIAL', 22, y - 2);
     pdf.text('CANT.', 172, y - 2);
     
     y += 8;
     
-    materials.forEach((item, index) => {
-      // Calcular espacio necesario para el material
-      const maxMaterialWidth = 145; // Ancho máximo para el texto del material
+    materialsList.forEach((item, index) => {
+      const maxMaterialWidth = 145;
       const materialLines = pdf.splitTextToSize(item.material, maxMaterialWidth);
       const lineHeight = 5;
-      const requiredHeight = Math.max(12, materialLines.length * lineHeight + 4); // Mínimo 12, o según líneas necesarias
+      const requiredHeight = Math.max(12, materialLines.length * lineHeight + 4);
       
-      // Verificar si necesitamos nueva página
       if (y + requiredHeight > 270) {
         pdf.addPage();
         y = 20;
         
-        // Repetir encabezados en nueva página
         pdf.setFontSize(11);
         pdf.setTextColor(255, 255, 255);
         pdf.setFont('helvetica', 'bold');
@@ -911,19 +1230,16 @@ function generateMaterialsPDF(materials, client, sede, month, year) {
         y += 8;
       }
       
-      // Fondo alternado para las filas
       const bgColor = index % 2 === 0 ? [248, 249, 250] : [255, 255, 255];
       pdf.setFillColor(...bgColor);
-      pdf.rect(20, y, 150, requiredHeight, 'F'); // Fondo material
-      pdf.rect(170, y, 20, requiredHeight, 'F'); // Fondo cantidad
+      pdf.rect(20, y, 150, requiredHeight, 'F');
+      pdf.rect(170, y, 20, requiredHeight, 'F');
       
-      // Bordes de la fila
       pdf.setDrawColor(220, 220, 220);
       pdf.setLineWidth(0.3);
-      pdf.rect(20, y, 150, requiredHeight); // Borde material
-      pdf.rect(170, y, 20, requiredHeight); // Borde cantidad
+      pdf.rect(20, y, 150, requiredHeight);
+      pdf.rect(170, y, 20, requiredHeight);
       
-      // Texto del material (múltiples líneas si es necesario)
       pdf.setFontSize(9);
       pdf.setTextColor(44, 62, 80);
       pdf.setFont('helvetica', 'normal');
@@ -934,7 +1250,6 @@ function generateMaterialsPDF(materials, client, sede, month, year) {
         pdf.text(line, 22, lineY);
       });
       
-      // Cantidad (centrada verticalmente en la celda)
       const quantityY = y + (requiredHeight / 2) + 2;
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'bold');
@@ -944,13 +1259,11 @@ function generateMaterialsPDF(materials, client, sede, month, year) {
       y += requiredHeight;
     });
     
-    // Línea final de la tabla
     pdf.setDrawColor(44, 90, 160);
     pdf.setLineWidth(0.8);
     pdf.line(20, y, 190, y);
   }
   
-  // Footer
   const pageCount = pdf.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
@@ -963,38 +1276,27 @@ function generateMaterialsPDF(materials, client, sede, month, year) {
     pdf.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 20, 282);
   }
   
-  // Descargar
   const sedeFileName = sede === 'all' ? 'TodasSedes' : sede.replace(/\s+/g, '_');
   const clientFileName = client.replace(/\s+/g, '_');
-  pdf.save(`SIMA_Materiales_${clientFileName}_${sedeFileName}_${monthName}_${year}.pdf`);
+  pdf.save(`SIMA_Materiales_${clientFileName}_${sedeFileName}_${periodLabel.replace(/\s+/g, '_')}.pdf`);
 }
 
-function generateMaterialsExcel(materials, client, sede, month, year) {
-  const monthNames = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-  ];
-  
-  const monthIndex = Math.max(0, Math.min(11, month - 1));
-  const monthName = monthNames[monthIndex];
-  
+function generateMaterialsExcel(materialsList, client, sede, periodLabel) {
   const wb = XLSX.utils.book_new();
   const excelData = [];
   
-  // Encabezados
   excelData.push(['SIMA - Reporte de Materiales']);
   excelData.push([]);
-  excelData.push([`Reporte de Materiales - ${monthName} ${year}`]);
+  excelData.push([`Reporte de Materiales`]);
+  excelData.push([`Período: ${periodLabel}`]);
   excelData.push([`Cliente: ${client}`]);
   excelData.push([`Sede: ${sede === 'all' ? 'Todas las sedes' : sede}`]);
-  excelData.push([`Total de materiales diferentes: ${materials.length}`]);
+  excelData.push([`Total de materiales diferentes: ${materialsList.length}`]);
   excelData.push([]);
   
-  // Encabezados de tabla
   excelData.push(['Material', 'Cantidad Usada']);
   
-  // Datos
-  materials.forEach(item => {
+  materialsList.forEach(item => {
     excelData.push([item.material, item.count]);
   });
   
@@ -1008,7 +1310,7 @@ function generateMaterialsExcel(materials, client, sede, month, year) {
   
   const sedeFileName = sede === 'all' ? 'TodasSedes' : sede.replace(/\s+/g, '_');
   const clientFileName = client.replace(/\s+/g, '_');
-  XLSX.writeFile(wb, `SIMA_Materiales_${clientFileName}_${sedeFileName}_${monthName}_${year}.xlsx`);
+  XLSX.writeFile(wb, `SIMA_Materiales_${clientFileName}_${sedeFileName}_${periodLabel.replace(/\s+/g, '_')}.xlsx`);
 }
 /* ===== DOM ready ===== */
 document.addEventListener('DOMContentLoaded', () => {
@@ -2203,51 +2505,168 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('cancelComplete').addEventListener('click', hideCompleteModal);
 
       // Event listener corregido para el formulario de reporte
-      reportForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+      // Event listener para cambio de tipo de período
+      const reportPeriodType = document.getElementById('reportPeriodType');
+      const monthSelectGroup = document.getElementById('monthSelectGroup');
+      const weekSelectGroup = document.getElementById('weekSelectGroup');
+      const reportWeek = document.getElementById('reportWeek');
+
+      reportPeriodType.addEventListener('change', (e) => {
+        const type = e.target.value;
+        
+        if (type === 'monthly') {
+          monthSelectGroup.style.display = 'block';
+          weekSelectGroup.style.display = 'none';
+          reportMonth.required = true;
+          reportWeek.required = false;
+          reportWeek.value = '';
+        } else if (type === 'weekly') {
+          monthSelectGroup.style.display = 'block';
+          weekSelectGroup.style.display = 'block';
+          reportMonth.required = true;
+          reportWeek.required = true;
+        } else {
+          monthSelectGroup.style.display = 'none';
+          weekSelectGroup.style.display = 'none';
+          reportMonth.required = false;
+          reportWeek.required = false;
+        }
+      });
+
+      // Event listener para cambio de mes (cargar semanas)
+      reportMonth.addEventListener('change', (e) => {
+        const periodType = reportPeriodType.value;
+        
+        if (periodType === 'weekly' && e.target.value) {
+          const [year, month] = e.target.value.split('-').map(Number);
+          const weeks = getWeeksInMonth(year, month);
+          
+          reportWeek.innerHTML = '<option value="">-- Selecciona una semana --</option>';
+          weeks.forEach(week => {
+            const option = document.createElement('option');
+            option.value = JSON.stringify({ 
+              start: week.start.toISOString(), 
+              end: week.end.toISOString(),
+              label: week.label
+            });
+            option.textContent = week.label;
+            reportWeek.appendChild(option);
+          });
+          
+          reportWeek.disabled = false;
+        }
+      });
+
+      // Event listener para preview del reporte
+      const previewReportBtn = document.getElementById('previewReportBtn');
+
+      previewReportBtn.addEventListener('click', async () => {
         const client = reportClientSelect.value;
         const sede = reportSedeSelect.value;
-        const month = reportMonth.value;
+        const periodType = reportPeriodType.value;
         const reportType = document.getElementById('reportType').value;
         
         if (!client) return alert('Seleccione un cliente');
         if (!sede) return alert('Seleccione una sede');
-        if (!month) return alert('Seleccione un mes');
+        if (!periodType) return alert('Seleccione el tipo de período');
         if (!reportType) return alert('Seleccione el tipo de reporte');
         
-        const clickedButton = e.submitter;
-        const format = clickedButton.getAttribute('data-format');
+        let startDate, endDate, periodLabel;
         
-        console.log('Iniciando reporte con parámetros:', {
-          client,
-          sede,
-          month,
-          format,
-          reportType
-        });
-        
-        // Deshabilitar botones durante la generación
-        const submitButtons = reportForm.querySelectorAll('button[type="submit"]');
-        submitButtons.forEach(btn => {
-          btn.disabled = true;
-          btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
-        });
+        if (periodType === 'monthly') {
+          const month = reportMonth.value;
+          if (!month) return alert('Seleccione un mes');
+          
+          const [year, monthNum] = month.split('-').map(Number);
+          startDate = new Date(year, monthNum - 1, 1);
+          endDate = new Date(year, monthNum, 0, 23, 59, 59);
+          
+          const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+          periodLabel = `${monthNames[monthNum - 1]} ${year}`;
+          
+        } else if (periodType === 'weekly') {
+          const weekData = reportWeek.value;
+          if (!weekData) return alert('Seleccione una semana');
+          
+          const week = JSON.parse(weekData);
+          startDate = new Date(week.start);
+          endDate = new Date(week.end);
+          
+          periodLabel = week.label + ` ${startDate.getFullYear()}`;
+        }
         
         try {
-          await generateReport(client, sede, month, format, reportType);
-        } catch (error) {
-          console.error('Error en event listener del reporte:', error);
-          alert('Error al generar el reporte');
-        } finally {
-          // Rehabilitar botones
-          submitButtons.forEach((btn, index) => {
-            btn.disabled = false;
-            if (index === 0) {
-              btn.innerHTML = '<i class="fas fa-file-pdf"></i> Descargar PDF';
+          previewReportBtn.disabled = true;
+          previewReportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
+          
+          const tasks = await getTasksByDateRange(user.uid, client, sede, startDate, endDate);
+          
+          const reportHTML = generateReportHTML(tasks, client, sede, periodLabel, reportType);
+          
+          // Abrir nueva ventana con el reporte
+          const previewWindow = window.open('', '_blank', 'width=1000,height=800');
+          previewWindow.document.write(reportHTML);
+          previewWindow.document.close();
+          
+          // Guardar datos para descargas
+          const reportData = {
+            tasks,
+            client,
+            sede,
+            month: startDate.getMonth() + 1,
+            year: startDate.getFullYear(),
+            periodLabel,
+            reportType
+          };
+          
+          // Configurar funciones de descarga en la nueva ventana
+          previewWindow.downloadPDF = function() {
+            if (reportData.reportType === 'materials') {
+              const tasksWithMaterials = reportData.tasks.filter(t => t.materials && t.materials.trim());
+              const materialsMap = {};
+              tasksWithMaterials.forEach(task => {
+                const materials = task.materials.split(',').map(m => m.trim()).filter(m => m);
+                materials.forEach(material => {
+                  materialsMap[material] = (materialsMap[material] || 0) + 1;
+                });
+              });
+              const materialsList = Object.entries(materialsMap)
+                .map(([material, count]) => ({ material, count }))
+                .sort((a, b) => b.count - a.count);
+              
+              generateMaterialsPDF(materialsList, reportData.client, reportData.sede, reportData.periodLabel);
             } else {
-              btn.innerHTML = '<i class="fas fa-file-excel"></i> Descargar Excel';
+              generatePDF(reportData.tasks, reportData.client, reportData.sede, startDate, endDate, reportData.periodLabel);
             }
-          });
+          };
+
+          previewWindow.downloadExcel = function() {
+            if (reportData.reportType === 'materials') {
+              const tasksWithMaterials = reportData.tasks.filter(t => t.materials && t.materials.trim());
+              const materialsMap = {};
+              tasksWithMaterials.forEach(task => {
+                const materials = task.materials.split(',').map(m => m.trim()).filter(m => m);
+                materials.forEach(material => {
+                  materialsMap[material] = (materialsMap[material] || 0) + 1;
+                });
+              });
+              const materialsList = Object.entries(materialsMap)
+                .map(([material, count]) => ({ material, count }))
+                .sort((a, b) => b.count - a.count);
+              
+              generateMaterialsExcel(materialsList, reportData.client, reportData.sede, reportData.periodLabel);
+            } else {
+              generateExcelReport(reportData.tasks, reportData.client, reportData.sede, reportData.periodLabel);
+            }
+          };
+          
+        } catch (error) {
+          console.error('Error generando preview:', error);
+          alert('Error al generar la pre-visualización');
+        } finally {
+          previewReportBtn.disabled = false;
+          previewReportBtn.innerHTML = '<i class="fas fa-eye"></i> Pre-visualizar Reporte';
         }
       });
 

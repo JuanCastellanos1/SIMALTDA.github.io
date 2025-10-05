@@ -193,23 +193,33 @@
             </select>
           </div>
           <div class="input-group">
-            <i class="fas fa-calendar"></i>
-            <input type="month" id="reportMonth" required />
+            <i class="fas fa-clock"></i>
+            <select id="reportPeriodType" required>
+              <option value="">-- Tipo de período --</option>
+              <option value="weekly">Semanal</option>
+              <option value="monthly">Mensual</option>
+            </select>
           </div>
-          
+          <div class="input-group" id="monthSelectGroup" style="display: none;">
+            <i class="fas fa-calendar"></i>
+            <input type="month" id="reportMonth" />
+          </div>
+          <div class="input-group" id="weekSelectGroup" style="display: none;">
+            <i class="fas fa-calendar-week"></i>
+            <select id="reportWeek" disabled>
+              <option value="">-- Primero selecciona un mes --</option>
+            </select>
+          </div>
+
           <div class="report-format-info">
-            <h4><i class="fas fa-info-circle"></i> Formatos Disponibles</h4>
-            <p>Selecciona el formato de reporte que prefieras:</p>
+            <h4><i class="fas fa-info-circle"></i> Pre-visualización Disponible</h4>
+            <p>Genera una vista previa del reporte antes de descargarlo.</p>
           </div>
           
           <div class="modal-actions report-actions">
-            <button type="submit" class="btn btn-report" data-format="pdf">
-              <i class="fas fa-file-pdf"></i>
-              Descargar PDF
-            </button>
-            <button type="submit" class="btn btn-success" data-format="excel">
-              <i class="fas fa-file-excel"></i>
-              Descargar Excel
+            <button type="button" class="btn btn-primary" id="previewReportBtn">
+              <i class="fas fa-eye"></i>
+              Pre-visualizar Reporte
             </button>
             <button type="button" class="btn btn-secondary" id="cancelReport">
               <i class="fas fa-times"></i>

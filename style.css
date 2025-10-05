@@ -792,6 +792,7 @@ textarea {
   white-space: pre-wrap;
   max-width: 100%;
   display: block;
+  overflow-wrap: anywhere; /* Fuerza el quiebre en cualquier punto */
 }
 
 .task .meta { 
@@ -802,7 +803,8 @@ textarea {
   gap: 5px;
   word-wrap: break-word;
   word-break: break-word;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere; /* Fuerza el quiebre en cualquier punto */
+  flex-wrap: wrap; /* Permite que el contenido se ajuste en múltiples líneas */
 }
 
 .task .meta i {
@@ -1613,4 +1615,20 @@ textarea {
   border: none;
   cursor: pointer;
   color: #fff !important;
+}
+
+/* Forzar quiebre de texto largo sin espacios */
+.task .task-description,
+.task .meta,
+.modal-body p,
+#modalTaskDesc {
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  hyphens: auto !important;
+}
+
+/* Asegurar que los materiales largos también se quiebren */
+.task .meta:has(i.fa-tools) {
+  max-width: 100%;
+  white-space: normal;
 }
