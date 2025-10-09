@@ -576,7 +576,7 @@ function generateReportHTML(tasks, client, sede, periodLabel, reportType) {
       
       <div class="container">
         <div class="header">
-          <h1><i class="fas fa-tools"></i> SIMA</h1>
+          <h1><i class="fas fa-tools"></i> SIMA Limitada</h1>
           <div class="subtitle">Servicios Integrales de Mantenimiento</div>
         </div>
         
@@ -604,8 +604,7 @@ function generateTasksHTML(tasks, client, sede) {
   return tasks.map(task => `
     <div class="task">
       <h3>${task.description || 'Sin descripción'}</h3>
-      ${sede === 'all' ? `<div class="task-detail"><strong>Cliente:</strong> ${task.client || 'N/A'}</div>` : ''}
-      <div class="task-detail"><strong>Sede:</strong> ${task.sede || 'N/A'}</div>
+      ${sede === 'all' ? `<div class="task-detail"><strong>Sede:</strong> ${task.sede || 'N/A'}</div>` : ''}
       <div class="task-detail"><strong>Tipo:</strong> ${task.type ? task.type.charAt(0).toUpperCase() + task.type.slice(1) : 'N/A'}</div>
       <div class="task-detail"><strong>Fecha Ingreso:</strong> ${safeFormatDate(task.createdAt)}</div>
       <div class="task-detail"><strong>Fecha Completado:</strong> ${safeFormatDate(task.completedAt)}</div>
@@ -948,12 +947,11 @@ function generatePDF(tasks, client, sede, startDate, endDate, periodLabel) {
 
         // Calcular altura EXACTA necesaria
         let requiredHeight = 2;
-        requiredHeight += 4;
-        if (sede !== 'all') {
-          requiredHeight += 4;
+        requiredHeight += 4; // Fechas en la parte superior
+        if (sede === 'all') {
+          requiredHeight += 4; // Sede (solo si es "todas las sedes")
         }
-        requiredHeight += 4;
-        requiredHeight += 4;
+        requiredHeight += 4; // Tipo
         requiredHeight += 5;
         requiredHeight += 2;
         requiredHeight += (descriptionLines.length * 4);
@@ -1007,27 +1005,17 @@ function generatePDF(tasks, client, sede, startDate, endDate, periodLabel) {
 
         currentY = y + 4;
 
-        // Cliente
-        if (sede !== 'all') {
+        // Sede (solo si es "todas las sedes")
+        if (sede === 'all') {
           pdf.setFontSize(8);
           pdf.setTextColor(44, 90, 160);
           pdf.setFont('helvetica', 'bold');
-          pdf.text('CLIENTE:', 22, currentY);
+          pdf.text('SEDE:', 22, currentY);
           pdf.setTextColor(44, 62, 80);
           pdf.setFont('helvetica', 'normal');
-          pdf.text(task.client || 'N/A', 50, currentY);
+          pdf.text(task.sede || 'N/A', 40, currentY);
           currentY += 4;
         }
-
-        // Sede
-        pdf.setFontSize(8);
-        pdf.setTextColor(44, 90, 160);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('SEDE:', 22, currentY);
-        pdf.setTextColor(44, 62, 80);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(task.sede || 'N/A', 40, currentY);
-        currentY += 4;
 
         // Tipo
         pdf.setFontSize(8);
@@ -1107,7 +1095,8 @@ function generatePDF(tasks, client, sede, startDate, endDate, periodLabel) {
         console.error('Error procesando tarea para PDF:', error, task);
         y += 20;
       }
-    });
+    }
+  );
   }
   
   // Footer
