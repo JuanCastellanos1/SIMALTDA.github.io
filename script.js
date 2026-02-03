@@ -362,13 +362,45 @@ function getWeeksInMonth(year, month) {
   const firstDay = new Date(year, month - 1, 1);
   const lastDay = new Date(year, month, 0);
   
+  // Encontrar el lunes de la primera semana o usar el primer día del mes
   let currentWeekStart = new Date(firstDay);
+  const firstDayOfWeek = firstDay.getDay(); // 0 = domingo, 1 = lunes, ..., 6 = sábado
+  
+  // Si el primer día no es lunes, retroceder al lunes anterior o usar el primer día si es después
+  if (firstDayOfWeek === 0) {
+    // Si es domingo, la semana empieza el lunes siguiente
+    currentWeekStart.setDate(currentWeekStart.getDate() + 1);
+  } else if (firstDayOfWeek > 1) {
+    // Si es martes-sábado, retroceder al lunes
+    currentWeekStart.setDate(currentWeekStart.getDate() - (firstDayOfWeek - 1));
+  }
+  // Si es lunes, no hacer nada
+  
+  // Ajustar para que la primera semana empiece en el primer día del mes si ese día está en el mes
+  if (currentWeekStart < firstDay) {
+    currentWeekStart = new Date(firstDay);
+  }
+  
   let weekNumber = 1;
   
   while (currentWeekStart <= lastDay) {
     let weekEnd = new Date(currentWeekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
     
+    // Encontrar el domingo de esta semana
+    const currentDayOfWeek = currentWeekStart.getDay();
+    let daysUntilSunday;
+    
+    if (currentDayOfWeek === 0) {
+      // Si empieza en domingo, es un día solo
+      daysUntilSunday = 0;
+    } else {
+      // Días hasta el próximo domingo
+      daysUntilSunday = 7 - currentDayOfWeek;
+    }
+    
+    weekEnd.setDate(weekEnd.getDate() + daysUntilSunday);
+    
+    // Si el final de la semana excede el último día del mes, ajustar
     if (weekEnd > lastDay) {
       weekEnd = new Date(lastDay);
     }
@@ -380,7 +412,15 @@ function getWeeksInMonth(year, month) {
       label: `Semana ${weekNumber} (${currentWeekStart.getDate()}/${month} - ${weekEnd.getDate()}/${month})`
     });
     
-    currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+    // Mover al siguiente lunes
+    currentWeekStart = new Date(weekEnd);
+    currentWeekStart.setDate(currentWeekStart.getDate() + 1);
+    
+    // Si ya pasamos el último día del mes, terminar
+    if (currentWeekStart > lastDay) {
+      break;
+    }
+    
     weekNumber++;
   }
   
@@ -601,25 +641,45 @@ function generateTasksHTML(tasks, client, sede) {
     return '<div class="no-tasks">No hay tareas completadas en el período seleccionado.</div>';
   }
   
-  return tasks.map(task => `
+  return tasks.map(task => {
+    // MODIFICACIÓN: Mostrar materiales como lista
+    let materialsHTML = 'N/A';
+    if (task.materials && Array.isArray(task.materials) && task.materials.length > 0) {
+      const materialsList = task.materials
+        .filter(m => m.trim())
+        .map(m => `<li>${m.trim()}</li>`)
+        .join('');
+      materialsHTML = `<ul class="materials-list">${materialsList}</ul>`;
+    } else if (task.materials && typeof task.materials === 'string' && task.materials.trim()) {
+      // Compatibilidad con formato antiguo
+      materialsHTML = task.materials;
+    }
+    
+    return `
     <div class="task">
       <h3>${task.description || 'Sin descripción'}</h3>
       ${sede === 'all' ? `<div class="task-detail"><strong>Sede:</strong> ${task.sede || 'N/A'}</div>` : ''}
       <div class="task-detail"><strong>Tipo:</strong> ${task.type ? task.type.charAt(0).toUpperCase() + task.type.slice(1) : 'N/A'}</div>
       <div class="task-detail"><strong>Fecha Ingreso:</strong> ${safeFormatDate(task.createdAt)}</div>
       <div class="task-detail"><strong>Fecha Completado:</strong> ${safeFormatDate(task.completedAt)}</div>
-      <div class="task-detail"><strong>Materiales:</strong> ${task.materials || 'N/A'}</div>
+      <div class="task-detail"><strong>Materiales:</strong> ${materialsHTML}</div>
       ${task.photo ? `
         <div class="task-photo">
           <img src="${task.photo}" alt="Evidencia fotográfica">
         </div>
       ` : ''}
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function generateMaterialsHTML(tasks) {
-  const tasksWithMaterials = tasks.filter(task => task.materials && task.materials.trim());
+  const tasksWithMaterials = tasks.filter(t => {
+    if (Array.isArray(t.materials)) {
+      return t.materials.length > 0 && t.materials.some(m => m.trim());
+    }
+    return t.materials && t.materials.trim();
+  });
   
   if (tasksWithMaterials.length === 0) {
     return '<div class="no-tasks">No hay materiales registrados en el período seleccionado.</div>';
@@ -627,9 +687,20 @@ function generateMaterialsHTML(tasks) {
   
   const materialsMap = {};
   tasksWithMaterials.forEach(task => {
-    const materials = task.materials.split(',').map(m => m.trim()).filter(m => m);
+    let materials = [];
+    
+    if (Array.isArray(task.materials)) {
+      materials = task.materials.filter(m => m.trim());
+    } else if (typeof task.materials === 'string') {
+      // Compatibilidad con formato antiguo
+      materials = task.materials.split(',').map(m => m.trim()).filter(m => m);
+    }
+    
     materials.forEach(material => {
-      materialsMap[material] = (materialsMap[material] || 0) + 1;
+      const cleanMaterial = material.trim();
+      if (cleanMaterial) {
+        materialsMap[cleanMaterial] = (materialsMap[cleanMaterial] || 0) + 1;
+      }
     });
   });
   
@@ -696,10 +767,9 @@ async function addTaskToFirestore(userId, task) {
 
 async function updateTaskInFirestore(userId, taskId, updates) {
   try {
-    // Si se está completando la tarea, añadir timestamp
-    if (updates.completed === true) {
-      updates.completedAt = firebase.firestore.FieldValue.serverTimestamp();
-    }
+    // MODIFICACIÓN: No añadir timestamp automático, usar la fecha proporcionada
+    // Si se está completando la tarea y hay una fecha de completado personalizada, usarla
+    // De lo contrario, se mantendrá la que ya se haya pasado en updates.completedAt
     
     await db.collection('users').doc(userId).collection('tasks').doc(taskId).update(updates);
     return true;
@@ -1424,6 +1494,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const currentYear = now.getFullYear();
       reportMonth.value = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
 
+      // NUEVO: Crear y agregar el input de fecha para completar tareas
+      const completedDateInput = document.createElement('input');
+      completedDateInput.type = 'date';
+      completedDateInput.id = 'completedDateInput';
+      completedDateInput.className = 'date-input';
+      completedDateInput.max = new Date().toISOString().split('T')[0]; // No permitir fechas futuras
+      completedDateInput.required = true;
+      
+      // Insertar el input de fecha en el formulario del modal (antes del textarea de materiales)
+      const materialsGroup = materialsInput.closest('.input-group');
+      const dateGroup = document.createElement('div');
+      dateGroup.className = 'input-group';
+      dateGroup.innerHTML = '<i class="fas fa-calendar-check"></i>';
+      dateGroup.appendChild(completedDateInput);
+      materialsGroup.parentNode.insertBefore(dateGroup, materialsGroup);
+
       // Cargar datos iniciales
       await loadAllData();
 
@@ -2077,26 +2163,37 @@ document.addEventListener('DOMContentLoaded', () => {
         const left = document.createElement('div');
         left.className = 'left';
         
-        // Fecha de creación
+        // Fecha de creación - SOLO DÍA, MES Y AÑO
         let createdAtStr = 'Fecha no disponible';
         if (task.createdAt) {
           if (task.createdAt.toDate) {
-            createdAtStr = task.createdAt.toDate().toLocaleString('es-ES');
+            createdAtStr = task.createdAt.toDate().toLocaleDateString('es-ES', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric'
+            });
           } else if (typeof task.createdAt === 'string') {
             createdAtStr = task.createdAt;
           }
         }
         
-        // Fecha de completado
+        // Fecha de completado - SOLO DÍA, MES Y AÑO
         let completedAtStr = '';
         if (task.completed && task.completedAt) {
-          if (task.completedAt.toDate) {
-            completedAtStr = task.completedAt.toDate().toLocaleString('es-ES');
-          } else if (task.completedAt.seconds) {
-            completedAtStr = new Date(task.completedAt.seconds * 1000).toLocaleString('es-ES');
-          } else if (typeof task.completedAt === 'string') {
-            completedAtStr = task.completedAt;
-          }
+          completedAtStr = safeFormatDate(task.completedAt);
+        }
+        
+        // MODIFICACIÓN: Mostrar materiales como lista
+        let materialsHTML = 'N/A';
+        if (task.materials && Array.isArray(task.materials) && task.materials.length > 0) {
+          const materialsList = task.materials
+            .filter(m => m.trim())
+            .map(m => `<li>${m.trim()}</li>`)
+            .join('');
+          materialsHTML = `<ul style="margin: 5px 0; padding-left: 20px;">${materialsList}</ul>`;
+        } else if (task.materials && typeof task.materials === 'string' && task.materials.trim()) {
+          // Compatibilidad con formato antiguo
+          materialsHTML = task.materials;
         }
         
         left.innerHTML = `
@@ -2123,7 +2220,7 @@ document.addEventListener('DOMContentLoaded', () => {
               Completada: ${completedAtStr}
             </div>
           ` : ''}
-          ${task.completed ? `<div class="meta"><i class="fas fa-tools"></i>Materiales: ${task.materials ? task.materials : 'N/A'}</div>` : ''}
+          ${task.completed ? `<div class="meta"><i class="fas fa-tools"></i>Materiales: ${materialsHTML}</div>` : ''}
           ${task.photo ? `
             <div class="meta">
               <i class="fas fa-camera"></i>
@@ -2221,13 +2318,28 @@ document.addEventListener('DOMContentLoaded', () => {
         
         currentTaskToComplete = task;
         modalTaskDesc.textContent = task.description;
+        
+        // Establecer fecha actual por defecto
+        const completedDateInput = document.getElementById('completedDateInput');
+        if (completedDateInput) {
+          completedDateInput.value = new Date().toISOString().split('T')[0];
+        }
+        
+        // Limpiar materiales
         materialsInput.value = '';
+        materialsInput.placeholder = 'Ingresa cada material en una línea separada\nEjemplo:\nTornillos 1/2"\nCable UTP Cat6\nPintura blanca';
+        
         selectedPhoto = null;
         photoPreview.innerHTML = '';
         removePhotoBtn.style.display = 'none';
         photoInput.value = '';
         completeModal.style.display = 'block';
-        materialsInput.focus();
+        
+        if (completedDateInput) {
+          completedDateInput.focus();
+        } else {
+          materialsInput.focus();
+        }
       }
 
       function hideCompleteModal() {
@@ -2237,6 +2349,11 @@ document.addEventListener('DOMContentLoaded', () => {
         photoPreview.innerHTML = '';
         removePhotoBtn.style.display = 'none';
         photoInput.value = '';
+        
+        const completedDateInput = document.getElementById('completedDateInput');
+        if (completedDateInput) {
+          completedDateInput.value = '';
+        }
       }
 
       function showReportModal() {
@@ -2270,14 +2387,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      async function completeTask(taskId, materials, photo = null) {
+      async function completeTask(taskId, materialsText, photo = null, completedDate = null) {
+        // Convertir el texto de materiales en array
+        const materialsArray = materialsText.trim() 
+          ? materialsText.split('\n').map(m => m.trim()).filter(m => m)
+          : [];
+        
         const updates = {
           completed: true,
-          materials: materials.trim() ? materials.trim() : null
+          materials: materialsArray.length > 0 ? materialsArray : null
         };
 
         if (photo) {
           updates.photo = photo;
+        }
+        
+        // MODIFICACIÓN: Usar la fecha personalizada si se proporciona
+        if (completedDate) {
+          // Crear un timestamp de Firestore con la fecha seleccionada (al mediodía)
+          const dateObj = new Date(completedDate);
+          dateObj.setHours(12, 0, 0, 0); // Mediodía para evitar problemas de zona horaria
+          updates.completedAt = firebase.firestore.Timestamp.fromDate(dateObj);
+        } else {
+          // Si no hay fecha personalizada, usar la fecha actual
+          updates.completedAt = firebase.firestore.FieldValue.serverTimestamp();
         }
         
         const success = await updateTaskInFirestore(user.uid, taskId, updates);
@@ -2482,11 +2615,19 @@ document.addEventListener('DOMContentLoaded', () => {
       completeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const materials = materialsInput.value.trim();
+        const completedDate = document.getElementById('completedDateInput').value;
+        
         if (!currentTaskToComplete) return;
+        
+        if (!completedDate) {
+          alert('Por favor selecciona la fecha en que se completó la tarea');
+          return;
+        }
+        
         const submitBtn = completeForm.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completando...';
-        await completeTask(currentTaskToComplete.id, materials, selectedPhoto);
+        await completeTask(currentTaskToComplete.id, materials, selectedPhoto, completedDate);
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="fas fa-check"></i> Completar Tarea';
       });
@@ -2612,12 +2753,25 @@ document.addEventListener('DOMContentLoaded', () => {
           // Configurar funciones de descarga en la nueva ventana
           previewWindow.downloadPDF = function() {
             if (reportData.reportType === 'materials') {
-              const tasksWithMaterials = reportData.tasks.filter(t => t.materials && t.materials.trim());
+              const tasksWithMaterials = reportData.tasks.filter(t => {
+                if (Array.isArray(t.materials)) {
+                  return t.materials.length > 0 && t.materials.some(m => m.trim());
+                }
+                return t.materials && t.materials.trim();
+              });
               const materialsMap = {};
               tasksWithMaterials.forEach(task => {
-                const materials = task.materials.split(',').map(m => m.trim()).filter(m => m);
+                let materials = [];
+                if (Array.isArray(task.materials)) {
+                  materials = task.materials.filter(m => m.trim());
+                } else if (typeof task.materials === 'string') {
+                  materials = task.materials.split(',').map(m => m.trim()).filter(m => m);
+                }
                 materials.forEach(material => {
-                  materialsMap[material] = (materialsMap[material] || 0) + 1;
+                  const cleanMaterial = material.trim();
+                  if (cleanMaterial) {
+                    materialsMap[cleanMaterial] = (materialsMap[cleanMaterial] || 0) + 1;
+                  }
                 });
               });
               const materialsList = Object.entries(materialsMap)
@@ -2632,12 +2786,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
           previewWindow.downloadExcel = function() {
             if (reportData.reportType === 'materials') {
-              const tasksWithMaterials = reportData.tasks.filter(t => t.materials && t.materials.trim());
+              const tasksWithMaterials = reportData.tasks.filter(t => {
+                if (Array.isArray(t.materials)) {
+                  return t.materials.length > 0 && t.materials.some(m => m.trim());
+                }
+                return t.materials && t.materials.trim();
+              });
               const materialsMap = {};
               tasksWithMaterials.forEach(task => {
-                const materials = task.materials.split(',').map(m => m.trim()).filter(m => m);
+                let materials = [];
+                if (Array.isArray(task.materials)) {
+                  materials = task.materials.filter(m => m.trim());
+                } else if (typeof task.materials === 'string') {
+                  materials = task.materials.split(',').map(m => m.trim()).filter(m => m);
+                }
                 materials.forEach(material => {
-                  materialsMap[material] = (materialsMap[material] || 0) + 1;
+                  const cleanMaterial = material.trim();
+                  if (cleanMaterial) {
+                    materialsMap[cleanMaterial] = (materialsMap[cleanMaterial] || 0) + 1;
+                  }
                 });
               });
               const materialsList = Object.entries(materialsMap)
