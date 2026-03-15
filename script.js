@@ -2173,7 +2173,16 @@ document.addEventListener('DOMContentLoaded', () => {
               year: 'numeric'
             });
           } else if (typeof task.createdAt === 'string') {
-            createdAtStr = task.createdAt;
+            const parsed = new Date(task.createdAt);
+            if (!isNaN(parsed.getTime())) {
+              createdAtStr = parsed.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+              });
+            } else {
+              createdAtStr = task.createdAt;
+            }
           }
         }
         
