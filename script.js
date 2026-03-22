@@ -2398,10 +2398,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       async function completeTask(taskId, materialsText, photo = null, completedDate = null) {
         // Convertir el texto de materiales en array
-        const materialsArray = materialsText.trim() 
+        const materialsArray = materialsText.trim()
           ? materialsText.split('\n').map(m => m.trim()).filter(m => m)
           : [];
-        
+
         const updates = {
           completed: true,
           materials: materialsArray.length > 0 ? materialsArray : null
@@ -2410,28 +2410,82 @@ document.addEventListener('DOMContentLoaded', () => {
         if (photo) {
           updates.photo = photo;
         }
-        
-        // MODIFICACIÓN: Usar la fecha personalizada si se proporciona
+
         if (completedDate) {
-          // Crear un timestamp de Firestore con la fecha seleccionada (al mediodía)
           const dateObj = new Date(completedDate);
-          dateObj.setHours(12, 0, 0, 0); // Mediodía para evitar problemas de zona horaria
+          dateObj.setHours(12, 0, 0, 0);
           updates.completedAt = firebase.firestore.Timestamp.fromDate(dateObj);
         } else {
-          // Si no hay fecha personalizada, usar la fecha actual
           updates.completedAt = firebase.firestore.FieldValue.serverTimestamp();
         }
-        
+
         const success = await updateTaskInFirestore(user.uid, taskId, updates);
         if (success) {
+
+          // Solo enviar correo si la tarea fue registrada desde Google Forms
+          if (currentTaskToComplete.registradoPor) {
+            const fechaCompletado = completedDate
+              ? new Date(completedDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+              : new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+            await enviarCorreoCompletado(
+              currentTaskToComplete.registradoPor,
+              currentTaskToComplete.description,
+              currentTaskToComplete.sede,
+              currentTaskToComplete.client,
+              fechaCompletado
+            );
+          }
+
           await loadTasks();
           hideCompleteModal();
-          
+
           if (!showCompleted) {
             alert('¡Tarea completada! Puedes verla en la sección de tareas completadas.');
           }
         } else {
           alert('Error al marcar la tarea como completada');
+        }
+      }
+
+
+      async function enviarCorreoCompletado(emailDestino, descripcion, sede, cliente, fecha) {
+        try {
+          // Usamos EmailJS para enviar el correo desde el frontend
+          // Si no tienes EmailJS, usa un endpoint propio o Firebase Functions
+          const asunto = encodeURIComponent("SIMA: Tu tarea ha sido completada");
+          const cuerpo = encodeURIComponent(
+              "Hola,\n\n"
+            + "Te informamos que la siguiente tarea ha sido completada:\n\n"
+            + "Cliente:          " + cliente + "\n"
+            + "Sede:             " + sede + "\n"
+            + "Tarea:            " + descripcion + "\n"
+            + "Fecha completado: " + fecha + "\n\n"
+            + "Puedes ver el detalle en SIMA:\n"
+            + "www.simaltda.gt.tc"
+          );
+
+          // Llamada a la Cloud Function de Firebase que envía el correo
+          const response = await fetch('https://us-central1-sima-b199c.cloudfunctions.net/enviarCorreoCompletado', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to:          emailDestino,
+              subject:     "SIMA: Tu tarea ha sido completada",
+              cliente:     cliente,
+              sede:        sede,
+              descripcion: descripcion,
+              fecha:       fecha
+            })
+          });
+
+          if (response.ok) {
+            console.log('✅ Correo de completado enviado a: ' + emailDestino);
+          } else {
+            console.error('❌ Error enviando correo de completado');
+          }
+        } catch (error) {
+          console.error('Error en enviarCorreoCompletado:', error);
         }
       }
 
