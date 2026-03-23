@@ -2466,7 +2466,7 @@ document.addEventListener('DOMContentLoaded', () => {
           );
 
           // Llamada a la Cloud Function de Firebase que envía el correo
-          const response = await fetch('https://us-central1-sima-b199c.cloudfunctions.net/enviarCorreoCompletado', {
+          const response = await fetch('https://enviarcorreocompletado-gvjnwhnxca-uc.a.run.app', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
